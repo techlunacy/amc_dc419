@@ -94,6 +94,10 @@ configured optimistic-state timeout, or when you run `amc_dc419.sync_state`.
 Use Home Assistant to control the fan and light consistently; commands sent
 from the physical handset cannot be observed by this integration.
 
+When light power is unknown, a brightness change sends only the relative
+brightness command and does not send the shared light toggle. Use the light's
+power control to explicitly change its on/off state.
+
 ## Options
 
 Open **Configure** on the integration card to tune RF behavior per controller:

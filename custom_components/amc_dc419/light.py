@@ -71,7 +71,10 @@ class AMCDC419Light(AMCDC419Entity, LightEntity):
         )
         target_brightness = requested_brightness or current_brightness
 
-        commands = [LearnCommand.LIGHT_TOGGLE]
+        should_toggle = self.coordinator.data.light_is_on is False or (
+            requested_brightness is None and self.coordinator.data.light_is_on is None
+        )
+        commands = [LearnCommand.LIGHT_TOGGLE] if should_toggle else []
         commands.extend(
             repeated_adjustment_commands(
                 current_brightness,
@@ -81,12 +84,14 @@ class AMCDC419Light(AMCDC419Entity, LightEntity):
                 LearnCommand.BRIGHTNESS_DOWN,
             )
         )
+        if not commands:
+            return
 
         await self.coordinator.async_send_commands(
             commands,
             lambda state: replace(
                 state,
-                light_is_on=True,
+                light_is_on=True if should_toggle else state.light_is_on,
                 brightness=target_brightness,
             ),
         )
