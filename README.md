@@ -84,7 +84,7 @@ Each configured controller exposes:
 
 | Entity | Behavior |
 | --- | --- |
-| Fan | On/off, six discrete speed commands, and forward/reverse direction. Requested percentages are mapped to the nearest supported speed. |
+| Fan | On/off, six discrete speed commands, and forward/reverse direction. A bare turn-on starts at 33% (speed 2); requested percentages are mapped to the nearest supported speed. |
 | Light | On/off through one shared handset toggle and brightness. Use the `colour_cycle` raw command to advance the handset's relative colour mode by one step. |
 
 The RF handset is one-way: it cannot report physical state. Entity values are

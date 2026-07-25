@@ -48,9 +48,9 @@ async def test_fan_entity_sets_speed_and_toggles_direction(hass: HomeAssistant) 
 
 
 async def test_fan_entity_supports_turn_actions(hass: HomeAssistant) -> None:
-    """Turn actions are advertised and use the first speed or explicit off."""
+    """A bare turn-on uses the first speed that reliably starts the fan."""
     entry, transport, command_store = await create_runtime_entry(hass)
-    for command in (LearnCommand.FAN_SPEED_1, LearnCommand.FAN_OFF):
+    for command in (LearnCommand.FAN_SPEED_2, LearnCommand.FAN_OFF):
         await command_store.async_store_command(
             "controller", make_learned_command(command)
         )
@@ -64,6 +64,7 @@ async def test_fan_entity_supports_turn_actions(hass: HomeAssistant) -> None:
     assert fan.speed_count == 6
     assert fan.percentage_step == 100 / 6
     assert [command.command for command in transport.sent] == [
-        LearnCommand.FAN_SPEED_1,
+        LearnCommand.FAN_SPEED_2,
         LearnCommand.FAN_OFF,
     ]
+    assert fan.percentage == 0

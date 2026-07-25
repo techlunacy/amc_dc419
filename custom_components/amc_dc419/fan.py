@@ -27,6 +27,7 @@ FAN_PERCENTAGE_COMMANDS: Final[dict[int, LearnCommand]] = {
     83: LearnCommand.FAN_SPEED_5,
     100: LearnCommand.FAN_SPEED_6,
 }
+DEFAULT_TURN_ON_PERCENTAGE: Final = 33
 FAN_DESCRIPTION: Final = AMCDC419EntityDescription(
     key="fan",
     translation_key="fan",
@@ -84,7 +85,7 @@ class AMCDC419Fan(AMCDC419Entity, FanEntity):
         await self.async_set_percentage(
             percentage
             if percentage is not None
-            else self.coordinator.data.fan_percentage or 16
+            else self.coordinator.data.fan_percentage or DEFAULT_TURN_ON_PERCENTAGE
         )
 
     async def async_turn_off(self, **_kwargs: object) -> None:
