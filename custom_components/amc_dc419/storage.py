@@ -22,6 +22,7 @@ from .transport import LearnedCommand, PayloadValue
 
 STORAGE_KEY: Final = f"{DOMAIN}.commands"
 STORAGE_VERSION: Final = 1
+LEGACY_LIGHT_ON_COMMAND: Final = "light_on"
 
 
 class CommandStore:
@@ -129,6 +130,11 @@ class CommandStore:
                 try:
                     command = LearnCommand(command_value)
                 except ValueError:
+                    if command_value != LEGACY_LIGHT_ON_COMMAND:
+                        continue
+                    command = LearnCommand.LIGHT_TOGGLE
+
+                if command is LearnCommand.LIGHT_TOGGLE and command in commands:
                     continue
 
                 learned_command = LearnedCommand.from_storage_data(
@@ -136,7 +142,7 @@ class CommandStore:
                 )
                 if learned_command is None:
                     learned_command = _deserialize_legacy_broadlink_command(
-                        command, stored_command
+                        command, command_value, stored_command
                     )
                 if learned_command is not None:
                     commands[command] = learned_command
@@ -177,7 +183,7 @@ def get_command_store(hass: HomeAssistant) -> CommandStore:
 
 
 def _deserialize_legacy_broadlink_command(
-    command: LearnCommand, data: object
+    command: LearnCommand, command_value: str, data: object
 ) -> LearnedCommand | None:
     """Deserialize the Broadlink-only command schema used before transport support."""
     if not isinstance(data, Mapping):
@@ -194,7 +200,7 @@ def _deserialize_legacy_broadlink_command(
 
     payload: dict[str, PayloadValue] = {
         CONF_REMOTE_DEVICE: remote_device,
-        ATTR_REMOTE_COMMAND: command.value,
+        ATTR_REMOTE_COMMAND: command_value,
     }
     return LearnedCommand(
         command=command,

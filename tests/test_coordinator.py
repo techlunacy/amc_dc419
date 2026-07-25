@@ -45,7 +45,7 @@ async def test_send_commands_preserves_order_and_updates_state(
     store = CommandStore(hass)
     transport = FakeTransport()
     coordinator = AMCDC419Coordinator(hass, entry, "controller", store, transport)
-    commands = (LearnCommand.LIGHT_ON, LearnCommand.BRIGHTNESS_UP)
+    commands = (LearnCommand.LIGHT_TOGGLE, LearnCommand.BRIGHTNESS_UP)
     for command in commands:
         await store.async_store_command("controller", make_learned_command(command))
 
@@ -187,7 +187,7 @@ async def test_send_waits_between_distinct_rf_commands(hass: HomeAssistant) -> N
     entry = MockConfigEntry(domain=DOMAIN)
     entry.add_to_hass(hass)
     store = CommandStore(hass)
-    commands = (LearnCommand.LIGHT_ON, LearnCommand.BRIGHTNESS_UP)
+    commands = (LearnCommand.LIGHT_TOGGLE, LearnCommand.BRIGHTNESS_UP)
     for command in commands:
         await store.async_store_command("controller", make_learned_command(command))
     coordinator = AMCDC419Coordinator(

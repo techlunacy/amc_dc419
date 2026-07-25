@@ -41,7 +41,7 @@ async def test_services_send_raw_relearn_and_reset_state(hass: HomeAssistant) ->
         SERVICE_LEARN_COMMAND,
         {
             ATTR_CONFIG_ENTRY_ID: entry.entry_id,
-            ATTR_COMMAND: LearnCommand.LIGHT_ON.value,
+            ATTR_COMMAND: LearnCommand.LIGHT_TOGGLE.value,
         },
         blocking=True,
     )
@@ -56,6 +56,8 @@ async def test_services_send_raw_relearn_and_reset_state(hass: HomeAssistant) ->
     )
 
     assert [command.command for command in transport.sent] == [LearnCommand.FAN_OFF]
-    assert transport.learned == [LearnCommand.LIGHT_ON]
-    assert await command_store.async_get_command("controller", LearnCommand.LIGHT_ON)
+    assert transport.learned == [LearnCommand.LIGHT_TOGGLE]
+    assert await command_store.async_get_command(
+        "controller", LearnCommand.LIGHT_TOGGLE
+    )
     assert entry.runtime_data.coordinator.data.fan_percentage is None

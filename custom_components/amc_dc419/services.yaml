@@ -20,8 +20,7 @@ learn_command:
       selector:
         select:
           options:
-            - light_on
-            - light_off
+            - light_toggle
             - brightness_up
             - brightness_down
             - colour_up
@@ -48,8 +47,7 @@ send_raw:
       selector:
         select:
           options:
-            - light_on
-            - light_off
+            - light_toggle
             - brightness_up
             - brightness_down
             - colour_up

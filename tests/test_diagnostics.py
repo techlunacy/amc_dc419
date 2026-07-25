@@ -36,7 +36,7 @@ async def test_diagnostics_redacts_transport_settings_and_command_payloads(
     entry.add_to_hass(hass)
     store = CommandStore(hass)
     await store.async_store_command(
-        "controller", make_learned_command(LearnCommand.LIGHT_ON)
+        "controller", make_learned_command(LearnCommand.LIGHT_TOGGLE)
     )
     transport = FakeTransport()
     coordinator = AMCDC419Coordinator(hass, entry, "controller", store, transport)
@@ -51,7 +51,7 @@ async def test_diagnostics_redacts_transport_settings_and_command_payloads(
 
     assert diagnostics["entry_data"][CONF_TRANSPORT] == "**REDACTED**"
     assert diagnostics["commands"] == {
-        LearnCommand.LIGHT_ON.value: {
+        LearnCommand.LIGHT_TOGGLE.value: {
             "transport_type": TransportType.BROADLINK.value,
             "learned_at": "2026-07-25T00:00:00+00:00",
         }

@@ -42,7 +42,11 @@ async def test_store_commands_requires_complete_command_set(
     with pytest.raises(ValueError, match="complete AMC DC419 command set"):
         await store.async_store_commands(
             "controller",
-            {LearnCommand.LIGHT_ON: make_learned_command(LearnCommand.LIGHT_ON)},
+            {
+                LearnCommand.LIGHT_TOGGLE: make_learned_command(
+                    LearnCommand.LIGHT_TOGGLE
+                )
+            },
         )
 
     assert await store.async_get_commands("controller") == {}
@@ -55,7 +59,7 @@ async def test_store_commands_replaces_all_bindings_atomically(
     store = CommandStore(hass)
     commands = {command: make_learned_command(command) for command in LearnCommand}
     await store.async_store_command(
-        "controller", make_learned_command(LearnCommand.LIGHT_ON)
+        "controller", make_learned_command(LearnCommand.LIGHT_TOGGLE)
     )
 
     await store.async_store_commands("controller", commands)
@@ -63,25 +67,30 @@ async def test_store_commands_replaces_all_bindings_atomically(
     assert await store.async_get_commands("controller") == commands
 
 
-def test_deserialize_legacy_broadlink_command() -> None:
-    """Legacy Broadlink bindings migrate to the transport-neutral payload format."""
+def test_deserialize_migrates_light_on_to_light_toggle() -> None:
+    """An existing Light On binding remains usable as the shared toggle."""
     commands = CommandStore._deserialize(
         {
             "controllers": {
                 "controller": {
-                    LearnCommand.LIGHT_ON.value: {
+                    "light_on": {
                         CONF_REMOTE_ENTITY_ID: "remote.office",
                         CONF_REMOTE_DEVICE: "amc_dc419_controller",
                         "learned_at": "2026-07-25T00:00:00+00:00",
-                    }
+                    },
+                    "light_off": {
+                        CONF_REMOTE_ENTITY_ID: "remote.office",
+                        CONF_REMOTE_DEVICE: "amc_dc419_controller",
+                        "learned_at": "2026-07-25T00:00:00+00:00",
+                    },
                 }
             }
         }
     )
 
-    migrated = commands["controller"][LearnCommand.LIGHT_ON]
+    migrated = commands["controller"][LearnCommand.LIGHT_TOGGLE]
     assert migrated.transport_type is TransportType.BROADLINK
     assert migrated.payload == {
         CONF_REMOTE_DEVICE: "amc_dc419_controller",
-        ATTR_REMOTE_COMMAND: LearnCommand.LIGHT_ON.value,
+        ATTR_REMOTE_COMMAND: "light_on",
     }

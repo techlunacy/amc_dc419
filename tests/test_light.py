@@ -57,9 +57,9 @@ def test_colour_calculation_selects_direction_and_rounds_up() -> None:
 async def test_light_entity_sends_ordered_brightness_commands(
     hass: HomeAssistant,
 ) -> None:
-    """Turning on at a requested brightness sends Light On then repeated presses."""
+    """Turning on at a requested brightness sends a toggle then repeated presses."""
     entry, transport, command_store = await create_runtime_entry(hass)
-    for command in (LearnCommand.LIGHT_ON, LearnCommand.BRIGHTNESS_UP):
+    for command in (LearnCommand.LIGHT_TOGGLE, LearnCommand.BRIGHTNESS_UP):
         await command_store.async_store_command(
             "controller", make_learned_command(command)
         )
@@ -71,7 +71,7 @@ async def test_light_entity_sends_ordered_brightness_commands(
     await light.async_turn_on(**{ATTR_BRIGHTNESS: 160})
 
     assert [command.command for command in transport.sent] == [
-        LearnCommand.LIGHT_ON,
+        LearnCommand.LIGHT_TOGGLE,
         LearnCommand.BRIGHTNESS_UP,
         LearnCommand.BRIGHTNESS_UP,
         LearnCommand.BRIGHTNESS_UP,
@@ -86,7 +86,7 @@ async def test_light_entity_sends_colour_temperature_commands(
 ) -> None:
     """Requested Kelvin temperature translates to repeated Colour Up commands."""
     entry, transport, command_store = await create_runtime_entry(hass)
-    for command in (LearnCommand.LIGHT_ON, LearnCommand.COLOUR_UP):
+    for command in (LearnCommand.LIGHT_TOGGLE, LearnCommand.COLOUR_UP):
         await command_store.async_store_command(
             "controller", make_learned_command(command)
         )
@@ -98,8 +98,30 @@ async def test_light_entity_sends_colour_temperature_commands(
     await light.async_turn_on(**{ATTR_COLOR_TEMP_KELVIN: 4_500})
 
     assert [command.command for command in transport.sent] == [
-        LearnCommand.LIGHT_ON,
+        LearnCommand.LIGHT_TOGGLE,
         LearnCommand.COLOUR_UP,
         LearnCommand.COLOUR_UP,
     ]
     assert light.color_temp_kelvin == 4_500
+
+
+async def test_light_entity_uses_toggle_command_to_turn_off(
+    hass: HomeAssistant,
+) -> None:
+    """Turning off sends the same handset toggle used to turn the light on."""
+    entry, transport, command_store = await create_runtime_entry(hass)
+    await command_store.async_store_command(
+        "controller", make_learned_command(LearnCommand.LIGHT_TOGGLE)
+    )
+    entry.runtime_data.coordinator.async_set_updated_data(
+        replace(entry.runtime_data.coordinator.data, light_is_on=True, brightness=160)
+    )
+    light = AMCDC419Light(entry)
+
+    await light.async_turn_off()
+
+    assert [command.command for command in transport.sent] == [
+        LearnCommand.LIGHT_TOGGLE
+    ]
+    assert light.is_on is False
+    assert light.brightness == 160

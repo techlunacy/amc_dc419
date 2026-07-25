@@ -89,7 +89,7 @@ class AMCDC419Light(AMCDC419Entity, LightEntity):
         target_brightness = requested_brightness or current_brightness
         target_color_temp = requested_color_temp or current_color_temp
 
-        commands = [LearnCommand.LIGHT_ON]
+        commands = [LearnCommand.LIGHT_TOGGLE]
         commands.extend(
             repeated_adjustment_commands(
                 current_brightness,
@@ -122,7 +122,7 @@ class AMCDC419Light(AMCDC419Entity, LightEntity):
     async def async_turn_off(self, **_kwargs: Any) -> None:
         """Turn off the light while retaining its last optimistic levels."""
         await self.coordinator.async_send_commands(
-            (LearnCommand.LIGHT_OFF,),
+            (LearnCommand.LIGHT_TOGGLE,),
             lambda state: replace(state, light_is_on=False),
         )
 

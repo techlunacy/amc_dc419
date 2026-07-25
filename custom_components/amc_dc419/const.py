@@ -56,8 +56,7 @@ class TransportType(StrEnum):
 class LearnCommand(StrEnum):
     """RF commands that must be learned for each AMC DC419 controller."""
 
-    LIGHT_ON = "light_on"
-    LIGHT_OFF = "light_off"
+    LIGHT_TOGGLE = "light_toggle"
     BRIGHTNESS_UP = "brightness_up"
     BRIGHTNESS_DOWN = "brightness_down"
     COLOUR_UP = "colour_up"
@@ -75,8 +74,7 @@ class LearnCommand(StrEnum):
 LEARN_COMMANDS: Final[tuple[LearnCommand, ...]] = tuple(LearnCommand)
 
 LEARN_COMMAND_LABELS: Final[dict[LearnCommand, str]] = {
-    LearnCommand.LIGHT_ON: "Light On",
-    LearnCommand.LIGHT_OFF: "Light Off",
+    LearnCommand.LIGHT_TOGGLE: "Light Toggle",
     LearnCommand.BRIGHTNESS_UP: "Brightness Up",
     LearnCommand.BRIGHTNESS_DOWN: "Brightness Down",
     LearnCommand.COLOUR_UP: "Colour Up",
