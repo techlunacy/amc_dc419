@@ -74,13 +74,16 @@ class AMCDC419Fan(AMCDC419Entity, FanEntity):
         return self.coordinator.data.fan_direction
 
     async def async_turn_on(
-        self, percentage: int | None = None, **_kwargs: object
+        self,
+        percentage: int | None = None,
+        _preset_mode: str | None = None,
+        **_kwargs: object,
     ) -> None:
-        """Turn on the fan at a requested or highest available speed."""
+        """Turn on the fan at a requested, remembered, or first available speed."""
         await self.async_set_percentage(
             percentage
             if percentage is not None
-            else self.coordinator.data.fan_percentage or 100
+            else self.coordinator.data.fan_percentage or 16
         )
 
     async def async_turn_off(self, **_kwargs: object) -> None:

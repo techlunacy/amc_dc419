@@ -48,20 +48,20 @@ async def test_fan_entity_sets_speed_and_toggles_direction(hass: HomeAssistant) 
 
 
 async def test_fan_entity_supports_turn_actions(hass: HomeAssistant) -> None:
-    """Turn actions are advertised and use the highest speed or explicit off."""
+    """Turn actions are advertised and use the first speed or explicit off."""
     entry, transport, command_store = await create_runtime_entry(hass)
-    for command in (LearnCommand.FAN_SPEED_6, LearnCommand.FAN_OFF):
+    for command in (LearnCommand.FAN_SPEED_1, LearnCommand.FAN_OFF):
         await command_store.async_store_command(
             "controller", make_learned_command(command)
         )
     fan = AMCDC419Fan(entry)
 
-    await fan.async_turn_on()
+    await fan.async_turn_on(None, None)
     await fan.async_turn_off()
 
     assert fan.supported_features & FanEntityFeature.TURN_ON
     assert fan.supported_features & FanEntityFeature.TURN_OFF
     assert [command.command for command in transport.sent] == [
-        LearnCommand.FAN_SPEED_6,
+        LearnCommand.FAN_SPEED_1,
         LearnCommand.FAN_OFF,
     ]
