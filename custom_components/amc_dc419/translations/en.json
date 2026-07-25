@@ -11,7 +11,7 @@
     },
     "step": {
       "learn_command": {
-        "description": "Press Submit to start learning **{command}**. When the selected Broadlink remote is ready, press the matching button on the AMC DC419 handset.",
+        "description": "Press Submit to start learning **{command}**. Follow the Broadlink notifications: hold the matching handset button during the frequency sweep, then press it again when prompted. The controller will receive one verification press after a successful capture.",
         "title": "Learn RF command"
       },
       "reconfigure": {

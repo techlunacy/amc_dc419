@@ -40,6 +40,8 @@
 
 - Add focused `pytest-homeassistant-custom-component` coverage for every
   behavior change, including success and failed RF-send paths where relevant.
+- Before every commit, increment the `[project].version` in `pyproject.toml`
+  with the appropriate semantic-version bump and include it in that commit.
 - Run the full project checks before completing work:
 
   ```console

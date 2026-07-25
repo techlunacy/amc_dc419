@@ -69,8 +69,10 @@ It then requests each RF command in order:
 The flow stores nothing until every command has been learned successfully. For
 each RF command, follow the Broadlink notifications: press and hold the handset
 button during the frequency sweep, then press it again when prompted to capture
-the code. If learning fails, correct the remote setup and retry the current
-step; an incomplete controller command set is not persisted.
+the code. The integration sends one verification press after each successful
+capture, so the controller may respond during setup. If learning fails, correct
+the remote setup and retry the current step; an incomplete controller command
+set is not persisted.
 
 The integration can be reconfigured from the Devices & services page to
 rename the controller, change its area, or select a replacement Broadlink

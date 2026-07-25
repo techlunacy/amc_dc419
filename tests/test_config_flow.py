@@ -123,6 +123,48 @@ async def test_learning_error_keeps_store_empty(hass: HomeAssistant) -> None:
     assert await get_command_store(hass).async_get_commands(controller_id) == {}
 
 
+async def test_unverified_learning_keeps_setup_on_current_command(
+    hass: HomeAssistant,
+) -> None:
+    """A Broadlink capture that was not stored cannot advance the wizard."""
+
+    async def handle_learn(_call: ServiceCall) -> None:
+        """Simulate a remote learning action that returns without an error."""
+
+    async def handle_send(_call: ServiceCall) -> None:
+        """Report the missing code when the transport verifies the capture."""
+        raise ValueError("Command not found: 'light_toggle'")
+
+    hass.states.async_set("remote.office", "on")
+    hass.services.async_register(
+        REMOTE_DOMAIN, REMOTE_SERVICE_LEARN_COMMAND, handle_learn
+    )
+    hass.services.async_register(
+        REMOTE_DOMAIN, REMOTE_SERVICE_SEND_COMMAND, handle_send
+    )
+    user_input = {
+        CONF_FRIENDLY_NAME: "Office fan",
+        CONF_AREA_ID: "office",
+        CONF_REMOTE_ENTITY_ID: "remote.office",
+    }
+    controller_id = AMCDC419ConfigFlow._create_controller_id(
+        user_input[CONF_FRIENDLY_NAME], user_input
+    )
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], user_input
+    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "learn_command"
+    assert result["errors"] == {"base": "unable_to_learn"}
+    assert await get_command_store(hass).async_get_commands(controller_id) == {}
+
+
 def test_controller_identity_ignores_area() -> None:
     """Moving a controller to another area does not change its stable identity."""
     base_input = {

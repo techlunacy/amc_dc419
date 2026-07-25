@@ -112,6 +112,13 @@ class BroadlinkTransport(RFTransport):
                 ATTR_TIMEOUT: DEFAULT_LEARN_TIMEOUT,
             },
         )
+        await self._async_call(
+            REMOTE_SERVICE_SEND_COMMAND,
+            {
+                ATTR_REMOTE_DEVICE: self._remote_device,
+                ATTR_REMOTE_COMMAND: command.value,
+            },
+        )
         return LearnedCommand(
             command=command,
             transport_type=self.transport_type,

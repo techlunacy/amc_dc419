@@ -28,7 +28,7 @@ from custom_components.amc_dc419.transport import (
 async def test_broadlink_transport_learns_and_sends_command(
     hass: HomeAssistant,
 ) -> None:
-    """Broadlink learns and sends the transport-owned command payload."""
+    """Broadlink verifies a learned command before later sending it."""
     learned_calls: list[ServiceCall] = []
     sent_calls: list[ServiceCall] = []
 
@@ -59,7 +59,6 @@ async def test_broadlink_transport_learns_and_sends_command(
     )
 
     learned_command = await transport.async_learn(LearnCommand.FAN_SPEED_4)
-    await transport.async_send(learned_command)
 
     assert learned_command.payload == {
         ATTR_REMOTE_DEVICE: "amc_dc419_office",
@@ -131,3 +130,37 @@ async def test_broadlink_transport_explains_missing_learned_command(
 
     with pytest.raises(TransportError, match="Relearn the command"):
         await transport.async_send(learned_command)
+
+
+async def test_broadlink_transport_rejects_unverified_learned_command(
+    hass: HomeAssistant,
+) -> None:
+    """A silent Broadlink RF capture failure does not produce a learned command."""
+
+    async def handle_learn(_call: ServiceCall) -> None:
+        """Simulate a Broadlink learning action that reports no error."""
+
+    async def handle_send(_call: ServiceCall) -> None:
+        """Report that Broadlink did not persist the requested code."""
+        raise ValueError("Command not found: 'light_toggle'")
+
+    hass.states.async_set("remote.office", "on")
+    hass.services.async_register(
+        REMOTE_DOMAIN, REMOTE_SERVICE_LEARN_COMMAND, handle_learn
+    )
+    hass.services.async_register(
+        REMOTE_DOMAIN, REMOTE_SERVICE_SEND_COMMAND, handle_send
+    )
+    transport = BroadlinkTransport(
+        hass,
+        TransportConfiguration(
+            transport_type=TransportType.BROADLINK,
+            settings={
+                CONF_REMOTE_ENTITY_ID: "remote.office",
+                CONF_REMOTE_DEVICE: "amc_dc419_office",
+            },
+        ),
+    )
+
+    with pytest.raises(TransportError, match="Relearn the command"):
+        await transport.async_learn(LearnCommand.LIGHT_TOGGLE)
