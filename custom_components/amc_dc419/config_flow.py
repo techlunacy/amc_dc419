@@ -2,39 +2,37 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import hashlib
+import json
 import logging
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
-from uuid import uuid4
 
 import voluptuous as vol
-
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import ATTR_ENTITY_ID
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
-from homeassistant.util import slugify
 
 from .const import (
-    ATTR_COMMAND_TYPE,
-    ATTR_REMOTE_COMMAND,
-    ATTR_REMOTE_DEVICE,
-    ATTR_TIMEOUT,
     CONF_AREA_ID,
     CONF_CONTROLLER_ID,
     CONF_FRIENDLY_NAME,
-    CONF_REMOTE_DEVICE,
-    CONF_REMOTE_ENTITY_ID,
-    DEFAULT_LEARN_TIMEOUT,
     DOMAIN,
     LEARN_COMMAND_LABELS,
     LEARN_COMMANDS,
     LearnCommand,
-    REMOTE_DOMAIN,
-    REMOTE_SERVICE_LEARN_COMMAND,
+    TransportType,
 )
 from .storage import get_command_store
+from .transport import (
+    LearnedCommand,
+    RFTransport,
+    TransportConfiguration,
+    TransportConfigurationError,
+    TransportError,
+    create_transport,
+    get_transport_provider,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,28 +44,32 @@ class ControllerConfiguration:
     controller_id: str
     friendly_name: str
     area_id: str
-    remote_entity_id: str
-    remote_device: str
+    transport_configuration: TransportConfiguration
 
-    def as_entry_data(self) -> dict[str, str]:
+    def as_entry_data(self) -> dict[str, object]:
         """Return the serializable configuration-entry data."""
-        return {
+        entry_data: dict[str, object] = {
             CONF_CONTROLLER_ID: self.controller_id,
             CONF_FRIENDLY_NAME: self.friendly_name,
             CONF_AREA_ID: self.area_id,
-            CONF_REMOTE_ENTITY_ID: self.remote_entity_id,
-            CONF_REMOTE_DEVICE: self.remote_device,
         }
+        entry_data.update(self.transport_configuration.as_entry_data())
+        return entry_data
 
 
 class AMCDC419ConfigFlow(ConfigFlow, domain=DOMAIN):
     """Manage configuration and RF command learning for AMC DC419 controllers."""
 
     VERSION = 1
-    MINOR_VERSION = 1
+    MINOR_VERSION = 2
 
-    _controller: ControllerConfiguration | None = None
-    _learn_command_index = 0
+    def __init__(self) -> None:
+        """Initialize state for one configuration-flow session."""
+        super().__init__()
+        self._controller: ControllerConfiguration | None = None
+        self._learn_command_index = 0
+        self._learned_commands: dict[LearnCommand, LearnedCommand] = {}
+        self._transport: RFTransport | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -77,40 +79,53 @@ class AMCDC419ConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             friendly_name = str(user_input[CONF_FRIENDLY_NAME]).strip()
-            remote_entity_id = str(user_input[CONF_REMOTE_ENTITY_ID])
 
             if not friendly_name or len(friendly_name) > 255:
                 errors[CONF_FRIENDLY_NAME] = "invalid_name"
-            elif not self._is_configured_remote(self.hass, remote_entity_id):
-                errors[CONF_REMOTE_ENTITY_ID] = "invalid_remote"
             else:
-                controller_id = uuid4().hex
-                await self.async_set_unique_id(controller_id)
-                self._abort_if_unique_id_configured()
+                transport_provider = get_transport_provider(TransportType.BROADLINK)
+                controller_id = self._create_controller_id(friendly_name, user_input)
+                try:
+                    transport_configuration = (
+                        await transport_provider.async_create_configuration(
+                            self.hass,
+                            controller_id,
+                            user_input,
+                        )
+                    )
+                except (TransportConfigurationError, TransportError):
+                    _LOGGER.warning(
+                        "Unable to configure AMC DC419 RF transport",
+                        extra={"transport": transport_provider.transport_type.value},
+                    )
+                    errors["base"] = "cannot_connect"
+                else:
+                    await self.async_set_unique_id(controller_id)
+                    self._abort_if_unique_id_configured()
 
-                self._controller = ControllerConfiguration(
-                    controller_id=controller_id,
-                    friendly_name=friendly_name,
-                    area_id=str(user_input[CONF_AREA_ID]),
-                    remote_entity_id=remote_entity_id,
-                    remote_device=(
-                        f"{DOMAIN}_{slugify(friendly_name)}_{controller_id[:8]}"
-                    ),
-                )
-                self._learn_command_index = 0
-                return await self.async_step_learn_command()
+                    self._controller = ControllerConfiguration(
+                        controller_id=controller_id,
+                        friendly_name=friendly_name,
+                        area_id=str(user_input[CONF_AREA_ID]),
+                        transport_configuration=transport_configuration,
+                    )
+                    self._learn_command_index = 0
+                    self._learned_commands = {}
+                    self._transport = create_transport(
+                        self.hass, transport_configuration
+                    )
+                    return await self.async_step_learn_command()
 
+        schema: dict[object, object] = {
+            vol.Required(CONF_FRIENDLY_NAME): selector.TextSelector(),
+            vol.Required(CONF_AREA_ID): selector.AreaSelector(),
+        }
+        schema.update(
+            get_transport_provider(TransportType.BROADLINK).config_flow_schema()
+        )
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_FRIENDLY_NAME): selector.TextSelector(),
-                    vol.Required(CONF_AREA_ID): selector.AreaSelector(),
-                    vol.Required(CONF_REMOTE_ENTITY_ID): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain=REMOTE_DOMAIN)
-                    ),
-                }
-            ),
+            data_schema=vol.Schema(schema),
             errors=errors,
         )
 
@@ -118,7 +133,7 @@ class AMCDC419ConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Learn each required RF command through the selected Broadlink remote."""
-        if self._controller is None:
+        if self._controller is None or self._transport is None:
             return self.async_abort(reason="invalid_flow_state")
 
         command = LEARN_COMMANDS[self._learn_command_index]
@@ -126,27 +141,26 @@ class AMCDC419ConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             try:
-                await self._async_learn_command(command)
-            except HomeAssistantError:
+                learned_command = await self._transport.async_learn(command)
+            except TransportError:
                 _LOGGER.warning(
                     "Unable to learn AMC DC419 RF command",
                     extra={
                         "command": command.value,
                         "controller_id": self._controller.controller_id,
-                        "remote_entity_id": self._controller.remote_entity_id,
+                        "transport": self._transport.transport_type.value,
                     },
                 )
                 errors["base"] = "unable_to_learn"
             else:
-                await get_command_store(self.hass).async_store_command(
-                    controller_id=self._controller.controller_id,
-                    command=command,
-                    remote_entity_id=self._controller.remote_entity_id,
-                    remote_device=self._controller.remote_device,
-                )
+                self._learned_commands[command] = learned_command
                 self._learn_command_index += 1
 
                 if self._learn_command_index == len(LEARN_COMMANDS):
+                    await get_command_store(self.hass).async_store_commands(
+                        self._controller.controller_id,
+                        self._learned_commands,
+                    )
                     return self.async_create_entry(
                         title=self._controller.friendly_name,
                         data=self._controller.as_entry_data(),
@@ -160,31 +174,21 @@ class AMCDC419ConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def _async_learn_command(self, command: LearnCommand) -> None:
-        """Ask the selected Broadlink remote to learn one RF command."""
-        assert self._controller is not None
-        _LOGGER.debug(
-            "Starting AMC DC419 RF command learning",
-            extra={
-                "command": command.value,
-                "controller_id": self._controller.controller_id,
-                "remote_entity_id": self._controller.remote_entity_id,
-            },
-        )
-        await self.hass.services.async_call(
-            REMOTE_DOMAIN,
-            REMOTE_SERVICE_LEARN_COMMAND,
-            {
-                ATTR_REMOTE_DEVICE: self._controller.remote_device,
-                ATTR_REMOTE_COMMAND: command.value,
-                ATTR_COMMAND_TYPE: "rf",
-                ATTR_TIMEOUT: DEFAULT_LEARN_TIMEOUT,
-            },
-            target={ATTR_ENTITY_ID: self._controller.remote_entity_id},
-            blocking=True,
-        )
-
     @staticmethod
-    def _is_configured_remote(hass: HomeAssistant, entity_id: str) -> bool:
-        """Return whether an existing entity is a remote entity."""
-        return entity_id.startswith(f"{REMOTE_DOMAIN}.") and hass.states.get(entity_id) is not None
+    def _create_controller_id(
+        friendly_name: str, transport_data: Mapping[str, object]
+    ) -> str:
+        """Return a stable local identifier for a user-configured controller."""
+        identity = json.dumps(
+            {
+                "friendly_name": friendly_name,
+                "transport": {
+                    key: value
+                    for key, value in transport_data.items()
+                    if key not in {CONF_AREA_ID, CONF_FRIENDLY_NAME}
+                },
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(identity.encode()).hexdigest()

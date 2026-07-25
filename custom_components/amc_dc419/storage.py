@@ -4,52 +4,24 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
-from dataclasses import dataclass
 from typing import Final
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
-from homeassistant.util import dt as dt_util
 
-from .const import DATA_COMMAND_STORE, DOMAIN, LearnCommand
+from .const import (
+    ATTR_REMOTE_COMMAND,
+    CONF_REMOTE_DEVICE,
+    CONF_REMOTE_ENTITY_ID,
+    DATA_COMMAND_STORE,
+    DOMAIN,
+    LearnCommand,
+    TransportType,
+)
+from .transport import LearnedCommand, PayloadValue
 
 STORAGE_KEY: Final = f"{DOMAIN}.commands"
 STORAGE_VERSION: Final = 1
-
-
-@dataclass(frozen=True, slots=True)
-class LearnedCommand:
-    """A durable binding to an RF command stored by a Broadlink remote."""
-
-    remote_entity_id: str
-    remote_device: str
-    learned_at: str
-
-    def as_storage_data(self) -> dict[str, str]:
-        """Return a JSON-serializable representation of the command binding."""
-        return {
-            "remote_entity_id": self.remote_entity_id,
-            "remote_device": self.remote_device,
-            "learned_at": self.learned_at,
-        }
-
-    @classmethod
-    def from_storage_data(cls, data: object) -> LearnedCommand | None:
-        """Create a command binding from validated persisted data."""
-        if not isinstance(data, Mapping):
-            return None
-
-        remote_entity_id = data.get("remote_entity_id")
-        remote_device = data.get("remote_device")
-        learned_at = data.get("learned_at")
-        if not all(isinstance(value, str) for value in (remote_entity_id, remote_device, learned_at)):
-            return None
-
-        return cls(
-            remote_entity_id=remote_entity_id,
-            remote_device=remote_device,
-            learned_at=learned_at,
-        )
 
 
 class CommandStore:
@@ -80,23 +52,35 @@ class CommandStore:
     async def async_store_command(
         self,
         controller_id: str,
-        command: LearnCommand,
-        remote_entity_id: str,
-        remote_device: str,
-    ) -> LearnedCommand:
-        """Persist the binding for a command learned by a Broadlink remote."""
+        learned_command: LearnedCommand,
+    ) -> None:
+        """Persist one transport-owned command, replacing any prior value."""
         await self.async_load()
-        learned_command = LearnedCommand(
-            remote_entity_id=remote_entity_id,
-            remote_device=remote_device,
-            learned_at=dt_util.utcnow().isoformat(),
-        )
 
         async with self._lock:
-            self._commands.setdefault(controller_id, {})[command] = learned_command
+            self._commands.setdefault(controller_id, {})[learned_command.command] = (
+                learned_command
+            )
             await self._store.async_save(self._serialize())
 
-        return learned_command
+    async def async_store_commands(
+        self,
+        controller_id: str,
+        commands: Mapping[LearnCommand, LearnedCommand],
+    ) -> None:
+        """Atomically persist the complete required command set for a controller."""
+        if set(commands) != set(LearnCommand):
+            raise ValueError("The complete AMC DC419 command set is required")
+        if any(
+            command is not learned_command.command
+            for command, learned_command in commands.items()
+        ):
+            raise ValueError("Command keys must match their learned command payloads")
+
+        await self.async_load()
+        async with self._lock:
+            self._commands[controller_id] = dict(commands)
+            await self._store.async_save(self._serialize())
 
     async def async_get_command(
         self, controller_id: str, command: LearnCommand
@@ -133,7 +117,9 @@ class CommandStore:
 
         controllers: dict[str, dict[LearnCommand, LearnedCommand]] = {}
         for controller_id, stored_commands in stored_controllers.items():
-            if not isinstance(controller_id, str) or not isinstance(stored_commands, Mapping):
+            if not isinstance(controller_id, str) or not isinstance(
+                stored_commands, Mapping
+            ):
                 continue
 
             commands: dict[LearnCommand, LearnedCommand] = {}
@@ -145,7 +131,13 @@ class CommandStore:
                 except ValueError:
                     continue
 
-                learned_command = LearnedCommand.from_storage_data(stored_command)
+                learned_command = LearnedCommand.from_storage_data(
+                    command, stored_command
+                )
+                if learned_command is None:
+                    learned_command = _deserialize_legacy_broadlink_command(
+                        command, stored_command
+                    )
                 if learned_command is not None:
                     commands[command] = learned_command
 
@@ -182,3 +174,31 @@ def get_command_store(hass: HomeAssistant) -> CommandStore:
         raise RuntimeError("AMC DC419 command store has an invalid runtime type")
 
     return command_store
+
+
+def _deserialize_legacy_broadlink_command(
+    command: LearnCommand, data: object
+) -> LearnedCommand | None:
+    """Deserialize the Broadlink-only command schema used before transport support."""
+    if not isinstance(data, Mapping):
+        return None
+
+    remote_entity_id = data.get(CONF_REMOTE_ENTITY_ID)
+    remote_device = data.get(CONF_REMOTE_DEVICE)
+    learned_at = data.get("learned_at")
+    if not all(
+        isinstance(value, str)
+        for value in (remote_entity_id, remote_device, learned_at)
+    ):
+        return None
+
+    payload: dict[str, PayloadValue] = {
+        CONF_REMOTE_DEVICE: remote_device,
+        ATTR_REMOTE_COMMAND: command.value,
+    }
+    return LearnedCommand(
+        command=command,
+        transport_type=TransportType.BROADLINK,
+        payload=payload,
+        learned_at=learned_at,
+    )

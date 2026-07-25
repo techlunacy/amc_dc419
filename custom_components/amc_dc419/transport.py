@@ -14,7 +14,7 @@ from homeassistant.exceptions import HomeAssistantError
 from .const import CONF_TRANSPORT, CONF_TRANSPORT_TYPE, LearnCommand, TransportType
 
 type PayloadValue = (
-    str | int | float | bool | None | list[PayloadValue] | dict[str, PayloadValue]
+    str | int | float | bool | list[PayloadValue] | dict[str, PayloadValue] | None
 )
 
 
@@ -95,7 +95,9 @@ class LearnedCommand:
             isinstance(key, str) and _is_payload_value(value)
             for key, value in self.payload.items()
         ):
-            raise TransportConfigurationError("Command payload is not JSON serializable")
+            raise TransportConfigurationError(
+                "Command payload is not JSON serializable"
+            )
 
         object.__setattr__(self, "payload", MappingProxyType(dict(self.payload)))
 
@@ -135,9 +137,7 @@ class LearnedCommand:
         except ValueError:
             return None
 
-        payload = {
-            key: cast(PayloadValue, value) for key, value in raw_payload.items()
-        }
+        payload = {key: cast(PayloadValue, value) for key, value in raw_payload.items()}
         return cls(
             command=command,
             transport_type=transport_type,
@@ -154,6 +154,11 @@ class RFTransport(ABC):
     def transport_type(self) -> TransportType:
         """Return the persistent type identifier for this transport."""
 
+    @property
+    def availability_entity_ids(self) -> tuple[str, ...]:
+        """Return Home Assistant entities that determine transport availability."""
+        return ()
+
     @abstractmethod
     async def async_validate(self) -> None:
         """Raise an error when the transport is not ready for use."""
@@ -167,14 +172,49 @@ class RFTransport(ABC):
         """Send one learned command through this transport."""
 
 
+class RFTransportProvider(ABC):
+    """Create and configure one concrete RF transport implementation."""
+
+    @property
+    @abstractmethod
+    def transport_type(self) -> TransportType:
+        """Return the persistent identifier for this transport."""
+
+    @abstractmethod
+    def config_flow_schema(self) -> Mapping[object, object]:
+        """Return the configuration fields needed by this transport."""
+
+    @abstractmethod
+    async def async_create_configuration(
+        self,
+        hass: HomeAssistant,
+        controller_id: str,
+        user_input: Mapping[str, object],
+    ) -> TransportConfiguration:
+        """Validate setup input and return durable transport settings."""
+
+    @abstractmethod
+    def create_transport(
+        self, hass: HomeAssistant, configuration: TransportConfiguration
+    ) -> RFTransport:
+        """Create a runtime transport from durable settings."""
+
+
 def create_transport(
     hass: HomeAssistant, configuration: TransportConfiguration
 ) -> RFTransport:
     """Create the RF transport declared by a controller configuration."""
-    if configuration.transport_type is TransportType.BROADLINK:
-        from .broadlink import BroadlinkTransport
+    return get_transport_provider(configuration.transport_type).create_transport(
+        hass, configuration
+    )
 
-        return BroadlinkTransport(hass, configuration)
+
+def get_transport_provider(transport_type: TransportType) -> RFTransportProvider:
+    """Return the provider that owns a supported transport type."""
+    if transport_type is TransportType.BROADLINK:
+        from .broadlink import BROADLINK_TRANSPORT_PROVIDER
+
+        return BROADLINK_TRANSPORT_PROVIDER
 
     raise TransportConfigurationError("Unsupported transport type")
 

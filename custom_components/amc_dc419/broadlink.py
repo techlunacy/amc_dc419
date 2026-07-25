@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Final
 
+import voluptuous as vol
 from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import selector
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -18,15 +21,17 @@ from .const import (
     CONF_REMOTE_DEVICE,
     CONF_REMOTE_ENTITY_ID,
     DEFAULT_LEARN_TIMEOUT,
-    LearnCommand,
+    DOMAIN,
     REMOTE_DOMAIN,
     REMOTE_SERVICE_LEARN_COMMAND,
     REMOTE_SERVICE_SEND_COMMAND,
+    LearnCommand,
     TransportType,
 )
 from .transport import (
     LearnedCommand,
     RFTransport,
+    RFTransportProvider,
     TransportConfiguration,
     TransportConfigurationError,
     TransportError,
@@ -43,7 +48,9 @@ _REQUIRED_SERVICES: Final = (
 class BroadlinkTransport(RFTransport):
     """Learn and send RF commands through a Broadlink remote entity."""
 
-    def __init__(self, hass: HomeAssistant, configuration: TransportConfiguration) -> None:
+    def __init__(
+        self, hass: HomeAssistant, configuration: TransportConfiguration
+    ) -> None:
         """Initialize the transport from serialized controller settings."""
         if configuration.transport_type is not TransportType.BROADLINK:
             raise TransportConfigurationError("Broadlink transport type is required")
@@ -62,6 +69,11 @@ class BroadlinkTransport(RFTransport):
         """Return the persistent transport identifier."""
         return TransportType.BROADLINK
 
+    @property
+    def availability_entity_ids(self) -> tuple[str, ...]:
+        """Return the selected Broadlink remote entity."""
+        return (self._remote_entity_id,)
+
     async def async_validate(self) -> None:
         """Ensure the selected remote entity and services are available."""
         remote_state = self._hass.states.get(self._remote_entity_id)
@@ -69,7 +81,9 @@ class BroadlinkTransport(RFTransport):
             STATE_UNAVAILABLE,
             STATE_UNKNOWN,
         }:
-            raise TransportUnavailableError("The configured Broadlink remote is unavailable")
+            raise TransportUnavailableError(
+                "The configured Broadlink remote is unavailable"
+            )
 
         if any(
             not self._hass.services.has_service(REMOTE_DOMAIN, service)
@@ -146,3 +160,50 @@ class BroadlinkTransport(RFTransport):
             )
         except HomeAssistantError as err:
             raise TransportError("Broadlink RF operation failed") from err
+
+
+class BroadlinkTransportProvider(RFTransportProvider):
+    """Provide configuration and runtime transports for Broadlink remotes."""
+
+    @property
+    def transport_type(self) -> TransportType:
+        """Return the persistent Broadlink transport identifier."""
+        return TransportType.BROADLINK
+
+    def config_flow_schema(self) -> Mapping[object, object]:
+        """Return fields required to configure a Broadlink remote."""
+        return {
+            vol.Required(CONF_REMOTE_ENTITY_ID): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=REMOTE_DOMAIN)
+            )
+        }
+
+    async def async_create_configuration(
+        self,
+        hass: HomeAssistant,
+        controller_id: str,
+        user_input: Mapping[str, object],
+    ) -> TransportConfiguration:
+        """Validate Broadlink setup input and return durable settings."""
+        remote_entity_id = user_input.get(CONF_REMOTE_ENTITY_ID)
+        if not isinstance(remote_entity_id, str) or not remote_entity_id:
+            raise TransportConfigurationError("A Broadlink remote is required")
+
+        configuration = TransportConfiguration(
+            transport_type=self.transport_type,
+            settings={
+                CONF_REMOTE_ENTITY_ID: remote_entity_id,
+                CONF_REMOTE_DEVICE: f"{DOMAIN}_{controller_id}",
+            },
+        )
+        await BroadlinkTransport(hass, configuration).async_validate()
+        return configuration
+
+    def create_transport(
+        self, hass: HomeAssistant, configuration: TransportConfiguration
+    ) -> BroadlinkTransport:
+        """Create a Broadlink transport from durable settings."""
+        return BroadlinkTransport(hass, configuration)
+
+
+BROADLINK_TRANSPORT_PROVIDER: Final = BroadlinkTransportProvider()
