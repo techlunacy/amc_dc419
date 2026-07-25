@@ -53,16 +53,14 @@ class OptimisticControllerState:
     """
 
     fan_percentage: int | None = None
-    fan_direction: str | None = None
     light_is_on: bool | None = None
     brightness: int | None = None
     transport_available: bool = False
 
-    def as_diagnostics_data(self) -> dict[str, int | str | bool | None]:
+    def as_diagnostics_data(self) -> dict[str, int | bool | None]:
         """Return state values suitable for diagnostics output."""
         return {
             "fan_percentage": self.fan_percentage,
-            "fan_direction": self.fan_direction,
             "light_is_on": self.light_is_on,
             "brightness": self.brightness,
             "transport_available": self.transport_available,
@@ -276,7 +274,6 @@ class AMCDC419Coordinator(DataUpdateCoordinator[OptimisticControllerState]):
             self._controller_id,
             StoredOptimisticState(
                 fan_percentage=state.fan_percentage,
-                fan_direction=state.fan_direction,
                 light_is_on=state.light_is_on,
                 brightness=state.brightness,
                 updated_at=updated_at,
@@ -302,7 +299,6 @@ class AMCDC419Coordinator(DataUpdateCoordinator[OptimisticControllerState]):
         self.async_set_updated_data(
             OptimisticControllerState(
                 fan_percentage=stored_state.fan_percentage,
-                fan_direction=stored_state.fan_direction,
                 light_is_on=stored_state.light_is_on,
                 brightness=stored_state.brightness,
                 transport_available=self.data.transport_available,

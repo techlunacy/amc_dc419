@@ -68,7 +68,7 @@ async def test_send_commands_preserves_order_and_updates_state(
 async def test_initialize_restores_persisted_optimistic_state(
     hass: HomeAssistant,
 ) -> None:
-    """A recreated coordinator restores all state inferred before a restart."""
+    """A recreated coordinator restores all persistable inferred state."""
     entry = MockConfigEntry(domain=DOMAIN)
     entry.add_to_hass(hass)
     command_store = CommandStore(hass)
@@ -91,7 +91,6 @@ async def test_initialize_restores_persisted_optimistic_state(
         lambda state: replace(
             state,
             fan_percentage=100,
-            fan_direction="reverse",
             light_is_on=True,
             brightness=160,
         ),
@@ -110,7 +109,6 @@ async def test_initialize_restores_persisted_optimistic_state(
     await restored_coordinator.async_initialize()
 
     assert restored_coordinator.data.fan_percentage == 100
-    assert restored_coordinator.data.fan_direction == "reverse"
     assert restored_coordinator.data.light_is_on is True
     assert restored_coordinator.data.brightness == 160
 
@@ -126,7 +124,6 @@ async def test_initialize_discards_expired_persisted_optimistic_state(
         "controller",
         StoredOptimisticState(
             fan_percentage=66,
-            fan_direction="forward",
             light_is_on=True,
             brightness=120,
             updated_at=dt_util.utcnow() - timedelta(seconds=11),
@@ -147,6 +144,24 @@ async def test_initialize_discards_expired_persisted_optimistic_state(
     assert coordinator.data.fan_percentage is None
     assert coordinator.data.light_is_on is None
     assert await state_store.async_get_state("controller") is None
+
+
+def test_stored_optimistic_state_ignores_legacy_direction() -> None:
+    """Existing state records remain valid after direction stops being modelled."""
+    stored_state = StoredOptimisticState.from_storage_data(
+        {
+            "fan_percentage": 66,
+            "fan_direction": "reverse",
+            "light_is_on": True,
+            "brightness": 120,
+            "updated_at": "2026-07-25T00:00:00+00:00",
+        }
+    )
+
+    assert stored_state is not None
+    assert stored_state.fan_percentage == 66
+    assert stored_state.light_is_on is True
+    assert stored_state.brightness == 120
 
 
 async def test_unavailable_send_marks_transport_unavailable(

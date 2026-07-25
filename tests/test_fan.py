@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from homeassistant.components.fan import DIRECTION_REVERSE, FanEntityFeature
+from homeassistant.components.fan import FanEntityFeature
 from homeassistant.core import HomeAssistant
 
 from custom_components.amc_dc419.const import LearnCommand
@@ -27,24 +27,23 @@ def test_fan_speed_mapping_uses_all_six_discrete_commands() -> None:
     ]
 
 
-async def test_fan_entity_sets_speed_and_toggles_direction(hass: HomeAssistant) -> None:
-    """Fan commands update optimistic percentage and direction state."""
+async def test_fan_entity_sets_speed_without_direction_selector(
+    hass: HomeAssistant,
+) -> None:
+    """Fan speed control does not expose unsupported absolute direction state."""
     entry, transport, command_store = await create_runtime_entry(hass)
-    for command in (LearnCommand.FAN_SPEED_4, LearnCommand.DIRECTION_TOGGLE):
-        await command_store.async_store_command(
-            "controller", make_learned_command(command)
-        )
+    await command_store.async_store_command(
+        "controller", make_learned_command(LearnCommand.FAN_SPEED_4)
+    )
     fan = AMCDC419Fan(entry)
 
     await fan.async_set_percentage(66)
-    await fan.async_set_direction(DIRECTION_REVERSE)
 
     assert [command.command for command in transport.sent] == [
         LearnCommand.FAN_SPEED_4,
-        LearnCommand.DIRECTION_TOGGLE,
     ]
     assert fan.percentage == 66
-    assert fan.current_direction == DIRECTION_REVERSE
+    assert not fan.supported_features & FanEntityFeature.DIRECTION
 
 
 async def test_fan_entity_supports_turn_actions(hass: HomeAssistant) -> None:

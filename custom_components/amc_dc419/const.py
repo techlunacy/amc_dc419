@@ -9,7 +9,7 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "amc_dc419"
 NAME: Final = "AMC DC419"
-PLATFORMS: Final = (Platform.FAN, Platform.LIGHT)
+PLATFORMS: Final = (Platform.BUTTON, Platform.FAN, Platform.LIGHT)
 
 CONF_AREA_ID: Final = "area_id"
 CONF_CONTROLLER_ID: Final = "controller_id"

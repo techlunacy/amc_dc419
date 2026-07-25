@@ -35,6 +35,11 @@
     }
   },
   "entity": {
+    "button": {
+      "direction_toggle": {
+        "name": "Toggle fan direction"
+      }
+    },
     "fan": {
       "fan": {
         "name": "Fan"

@@ -22,7 +22,6 @@ class StoredOptimisticState:
     """One controller's persisted, inferred state and its update time."""
 
     fan_percentage: int | None
-    fan_direction: str | None
     light_is_on: bool | None
     brightness: int | None
     updated_at: datetime
@@ -34,14 +33,12 @@ class StoredOptimisticState:
             return None
 
         fan_percentage = data.get("fan_percentage")
-        fan_direction = data.get("fan_direction")
         light_is_on = data.get("light_is_on")
         brightness = data.get("brightness")
         updated_at = data.get("updated_at")
         if (
             not isinstance(fan_percentage, int | None)
             or isinstance(fan_percentage, bool)
-            or not isinstance(fan_direction, str | None)
             or not isinstance(light_is_on, bool | None)
             or not isinstance(brightness, int | None)
             or isinstance(brightness, bool)
@@ -58,7 +55,6 @@ class StoredOptimisticState:
 
         return cls(
             fan_percentage=fan_percentage,
-            fan_direction=fan_direction,
             light_is_on=light_is_on,
             brightness=brightness,
             updated_at=timestamp,
@@ -68,7 +64,6 @@ class StoredOptimisticState:
         """Serialize this state record for Home Assistant storage."""
         return {
             "fan_percentage": self.fan_percentage,
-            "fan_direction": self.fan_direction,
             "light_is_on": self.light_is_on,
             "brightness": self.brightness,
             "updated_at": self.updated_at.isoformat(),

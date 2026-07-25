@@ -84,15 +84,17 @@ Each configured controller exposes:
 
 | Entity | Behavior |
 | --- | --- |
-| Fan | On/off, six discrete speed commands, and forward/reverse direction. A bare turn-on starts at 33% (speed 2); requested percentages are mapped to the nearest supported speed. |
+| Fan | On/off and six discrete speed commands. A bare turn-on starts at 33% (speed 2); requested percentages are mapped to the nearest supported speed. |
 | Light | On/off through one shared handset toggle and brightness. Use the `colour_cycle` raw command to advance the handset's relative colour mode by one step. |
+| Button | Toggle fan direction with one relative handset command. |
 
 The RF handset is one-way: it cannot report physical state. Entity values are
 therefore optimistic and represent the last successful command sent through
-Home Assistant. The inferred fan speed, direction, light power, and brightness
-are restored after a Home Assistant restart until the configured
-optimistic-state timeout expires. State becomes unknown after that timeout or
-when you run `amc_dc419.sync_state`. Use Home Assistant to control the fan and
+Home Assistant. The inferred fan speed, light power, and brightness are restored
+after a Home Assistant restart until the configured optimistic-state timeout
+expires. The direction button sends a relative toggle; the controller cannot
+report or retain its physical direction. State becomes unknown after that timeout
+or when you run `amc_dc419.sync_state`. Use Home Assistant to control the fan and
 light consistently; commands sent from the physical handset cannot be observed
 by this integration.
 

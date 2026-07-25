@@ -101,7 +101,6 @@ async def test_entry_lifecycle_initializes_and_removes_commands(
         "controller",
         StoredOptimisticState(
             fan_percentage=16,
-            fan_direction=None,
             light_is_on=None,
             brightness=None,
             updated_at=datetime(2026, 7, 25, tzinfo=UTC),

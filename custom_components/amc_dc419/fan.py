@@ -6,8 +6,6 @@ from dataclasses import replace
 from typing import Final
 
 from homeassistant.components.fan import (
-    DIRECTION_FORWARD,
-    DIRECTION_REVERSE,
     FanEntity,
     FanEntityFeature,
 )
@@ -49,7 +47,6 @@ class AMCDC419Fan(AMCDC419Entity, FanEntity):
     entity_description = FAN_DESCRIPTION
     _attr_supported_features = (
         FanEntityFeature.SET_SPEED
-        | FanEntityFeature.DIRECTION
         | FanEntityFeature.TURN_ON
         | FanEntityFeature.TURN_OFF
     )
@@ -69,11 +66,6 @@ class AMCDC419Fan(AMCDC419Entity, FanEntity):
     def percentage(self) -> int | None:
         """Return the nearest selected fan speed percentage."""
         return self.coordinator.data.fan_percentage
-
-    @property
-    def current_direction(self) -> str | None:
-        """Return the optimistic fan direction."""
-        return self.coordinator.data.fan_direction
 
     async def async_turn_on(
         self,
@@ -98,18 +90,6 @@ class AMCDC419Fan(AMCDC419Entity, FanEntity):
         await self.coordinator.async_send_commands(
             (command,),
             lambda state: replace(state, fan_percentage=selected_percentage),
-        )
-
-    async def async_set_direction(self, direction: str) -> None:
-        """Toggle and optimistically store a requested forward or reverse direction."""
-        if direction not in {DIRECTION_FORWARD, DIRECTION_REVERSE}:
-            raise ValueError(f"Unsupported fan direction: {direction}")
-        if self.coordinator.data.fan_direction == direction:
-            return
-
-        await self.coordinator.async_send_commands(
-            (LearnCommand.DIRECTION_TOGGLE,),
-            lambda state: replace(state, fan_direction=direction),
         )
 
 
