@@ -89,10 +89,12 @@ Each configured controller exposes:
 
 The RF handset is one-way: it cannot report physical state. Entity values are
 therefore optimistic and represent the last successful command sent through
-Home Assistant. State becomes unknown after Home Assistant restarts, after the
-configured optimistic-state timeout, or when you run `amc_dc419.sync_state`.
-Use Home Assistant to control the fan and light consistently; commands sent
-from the physical handset cannot be observed by this integration.
+Home Assistant. The inferred fan speed, direction, light power, and brightness
+are restored after a Home Assistant restart until the configured
+optimistic-state timeout expires. State becomes unknown after that timeout or
+when you run `amc_dc419.sync_state`. Use Home Assistant to control the fan and
+light consistently; commands sent from the physical handset cannot be observed
+by this integration.
 
 When light power is unknown, a brightness change sends only the relative
 brightness command and does not send the shared light toggle. Use the light's

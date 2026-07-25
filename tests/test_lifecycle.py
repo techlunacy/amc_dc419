@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import cast
 
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -25,6 +26,10 @@ from custom_components.amc_dc419.const import (
     REMOTE_SERVICE_SEND_COMMAND,
     LearnCommand,
     TransportType,
+)
+from custom_components.amc_dc419.state_store import (
+    StoredOptimisticState,
+    get_optimistic_state_store,
 )
 from custom_components.amc_dc419.storage import get_command_store
 
@@ -92,6 +97,16 @@ async def test_entry_lifecycle_initializes_and_removes_commands(
     await get_command_store(hass).async_store_command(
         "controller", make_learned_command(LearnCommand.FAN_OFF)
     )
+    await get_optimistic_state_store(hass).async_store_state(
+        "controller",
+        StoredOptimisticState(
+            fan_percentage=16,
+            fan_direction=None,
+            light_is_on=None,
+            brightness=None,
+            updated_at=datetime(2026, 7, 25, tzinfo=UTC),
+        ),
+    )
 
     assert await hass.config_entries.async_setup(entry.entry_id) is True
     await hass.async_block_till_done()
@@ -102,3 +117,4 @@ async def test_entry_lifecycle_initializes_and_removes_commands(
     await hass.config_entries.async_remove(entry.entry_id)
 
     assert await get_command_store(hass).async_get_commands("controller") == {}
+    assert await get_optimistic_state_store(hass).async_get_state("controller") is None

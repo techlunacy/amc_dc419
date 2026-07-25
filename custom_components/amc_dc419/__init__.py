@@ -19,6 +19,7 @@ from .const import (
     TransportType,
 )
 from .coordinator import AMCDC419Coordinator, ControllerOptions
+from .state_store import get_optimistic_state_store
 from .storage import CommandStore, get_command_store
 from .transport import (
     RFTransport,
@@ -53,6 +54,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: AMCDC419ConfigEntry) -> 
     """Set up an AMC DC419 controller config entry."""
     command_store = get_command_store(hass)
     await command_store.async_load()
+    state_store = get_optimistic_state_store(hass)
+    await state_store.async_load()
     controller_id = _get_controller_id(entry)
     try:
         transport_configuration = TransportConfiguration.from_entry_data(entry.data)
@@ -64,6 +67,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AMCDC419ConfigEntry) -> 
             command_store,
             transport,
             ControllerOptions.from_entry(entry),
+            state_store,
         )
         await coordinator.async_initialize()
     except TransportConfigurationError as err:
@@ -129,8 +133,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: AMCDC419ConfigEntry) ->
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: AMCDC419ConfigEntry) -> None:
-    """Remove durable RF commands when an AMC DC419 controller is removed."""
+    """Remove durable controller data when an AMC DC419 controller is removed."""
     await get_command_store(hass).async_remove_controller(_get_controller_id(entry))
+    await get_optimistic_state_store(hass).async_remove_state(_get_controller_id(entry))
 
 
 def _get_controller_id(entry: AMCDC419ConfigEntry) -> str:

@@ -7,12 +7,14 @@ import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
+from functools import partial
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_BRIGHTNESS_STEP_COUNT,
@@ -25,6 +27,11 @@ from .const import (
     DEFAULT_RETRY_COUNT,
     DOMAIN,
     LearnCommand,
+)
+from .state_store import (
+    OptimisticStateStore,
+    StoredOptimisticState,
+    get_optimistic_state_store,
 )
 from .storage import CommandStore
 from .transport import (
@@ -109,6 +116,7 @@ class AMCDC419Coordinator(DataUpdateCoordinator[OptimisticControllerState]):
         command_store: CommandStore,
         transport: RFTransport,
         options: ControllerOptions | None = None,
+        state_store: OptimisticStateStore | None = None,
     ) -> None:
         """Initialize shared runtime state without network or storage I/O."""
         super().__init__(
@@ -125,6 +133,8 @@ class AMCDC419Coordinator(DataUpdateCoordinator[OptimisticControllerState]):
         self._options = options or ControllerOptions()
         self._remove_transport_listener: CALLBACK_TYPE | None = None
         self._remove_optimistic_timeout: CALLBACK_TYPE | None = None
+        self._optimistic_state_expiry_generation = 0
+        self._state_store = state_store or get_optimistic_state_store(hass)
         self.async_set_updated_data(OptimisticControllerState())
 
     @property
@@ -144,6 +154,7 @@ class AMCDC419Coordinator(DataUpdateCoordinator[OptimisticControllerState]):
 
     async def async_initialize(self) -> None:
         """Validate the transport and begin tracking its availability."""
+        await self._state_store.async_load()
         try:
             await self._transport.async_validate()
         except TransportError:
@@ -151,6 +162,7 @@ class AMCDC419Coordinator(DataUpdateCoordinator[OptimisticControllerState]):
             raise
 
         self._async_set_transport_available(True)
+        await self._async_restore_optimistic_state()
         entity_ids = self._transport.availability_entity_ids
         if entity_ids:
             self._remove_transport_listener = async_track_state_change_event(
@@ -196,13 +208,13 @@ class AMCDC419Coordinator(DataUpdateCoordinator[OptimisticControllerState]):
 
             self._async_set_transport_available(True)
             if state_updater is not None:
-                self.async_set_updated_data(state_updater(self.data))
-                self._async_schedule_optimistic_timeout()
+                await self._async_publish_optimistic_state(state_updater(self.data))
 
     async def async_reset_optimistic_state(self) -> None:
         """Clear state inferred from previous one-way RF transmissions."""
         async with self._send_lock:
             self._async_cancel_optimistic_timeout()
+            await self._state_store.async_remove_state(self._controller_id)
             self.async_set_updated_data(
                 OptimisticControllerState(
                     transport_available=self.data.transport_available,
@@ -223,15 +235,19 @@ class AMCDC419Coordinator(DataUpdateCoordinator[OptimisticControllerState]):
                 await asyncio.sleep(self._options.repeat_delay)
 
     @callback
-    def _async_schedule_optimistic_timeout(self) -> None:
+    def _async_schedule_optimistic_timeout(self, updated_at: datetime) -> None:
         """Clear inferred state after the configured one-way RF timeout."""
         self._async_cancel_optimistic_timeout()
         if self._options.optimistic_timeout <= 0:
             return
+
+        expires_at = updated_at + timedelta(seconds=self._options.optimistic_timeout)
+        delay = max(expires_at - dt_util.utcnow(), timedelta())
+        generation = self._optimistic_state_expiry_generation
         self._remove_optimistic_timeout = async_call_later(
             self.hass,
-            timedelta(seconds=self._options.optimistic_timeout),
-            self._async_expire_optimistic_state,
+            delay,
+            partial(self._async_expire_optimistic_state, generation),
         )
 
     @callback
@@ -240,14 +256,73 @@ class AMCDC419Coordinator(DataUpdateCoordinator[OptimisticControllerState]):
         if self._remove_optimistic_timeout is not None:
             self._remove_optimistic_timeout()
             self._remove_optimistic_timeout = None
+        self._optimistic_state_expiry_generation += 1
 
     @callback
-    def _async_expire_optimistic_state(self, _now: datetime) -> None:
-        """Clear expired inferred state without changing transport availability."""
+    def _async_expire_optimistic_state(self, generation: int, _now: datetime) -> None:
+        """Schedule removal of an expired optimistic state record."""
         self._remove_optimistic_timeout = None
-        self.async_set_updated_data(
-            OptimisticControllerState(transport_available=self.data.transport_available)
+        self.hass.async_create_task(
+            self._async_clear_expired_optimistic_state(generation),
+            f"{DOMAIN}_expire_optimistic_state",
         )
+
+    async def _async_publish_optimistic_state(
+        self, state: OptimisticControllerState
+    ) -> None:
+        """Persist and publish state requested by a completed RF command batch."""
+        updated_at = dt_util.utcnow()
+        await self._state_store.async_store_state(
+            self._controller_id,
+            StoredOptimisticState(
+                fan_percentage=state.fan_percentage,
+                fan_direction=state.fan_direction,
+                light_is_on=state.light_is_on,
+                brightness=state.brightness,
+                updated_at=updated_at,
+            ),
+        )
+        self.async_set_updated_data(state)
+        self._async_schedule_optimistic_timeout(updated_at)
+
+    async def _async_restore_optimistic_state(self) -> None:
+        """Restore persisted inferred state only while its timeout remains active."""
+        stored_state = await self._state_store.async_get_state(self._controller_id)
+        if stored_state is None:
+            return
+
+        if self._options.optimistic_timeout > 0 and (
+            stored_state.updated_at
+            + timedelta(seconds=self._options.optimistic_timeout)
+            <= dt_util.utcnow()
+        ):
+            await self._state_store.async_remove_state(self._controller_id)
+            return
+
+        self.async_set_updated_data(
+            OptimisticControllerState(
+                fan_percentage=stored_state.fan_percentage,
+                fan_direction=stored_state.fan_direction,
+                light_is_on=stored_state.light_is_on,
+                brightness=stored_state.brightness,
+                transport_available=self.data.transport_available,
+            )
+        )
+        self._async_schedule_optimistic_timeout(stored_state.updated_at)
+
+    async def _async_clear_expired_optimistic_state(self, generation: int) -> None:
+        """Clear the matching expired state without racing a new command batch."""
+        async with self._send_lock:
+            if generation != self._optimistic_state_expiry_generation:
+                return
+
+            await self._state_store.async_remove_state(self._controller_id)
+            self._optimistic_state_expiry_generation += 1
+            self.async_set_updated_data(
+                OptimisticControllerState(
+                    transport_available=self.data.transport_available,
+                )
+            )
 
     @callback
     def _async_handle_transport_state_change(

@@ -24,6 +24,7 @@ CONF_RETRY_COUNT: Final = "retry_count"
 CONF_OPTIMISTIC_TIMEOUT: Final = "optimistic_timeout"
 
 DATA_COMMAND_STORE: Final = "command_store"
+DATA_OPTIMISTIC_STATE_STORE: Final = "optimistic_state_store"
 
 REMOTE_DOMAIN: Final = "remote"
 REMOTE_SERVICE_LEARN_COMMAND: Final = "learn_command"

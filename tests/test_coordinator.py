@@ -26,6 +26,11 @@ from custom_components.amc_dc419.coordinator import (
     AMCDC419Coordinator,
     ControllerOptions,
 )
+from custom_components.amc_dc419.state_store import (
+    OptimisticStateStore,
+    StoredOptimisticState,
+    get_optimistic_state_store,
+)
 from custom_components.amc_dc419.storage import CommandStore
 from custom_components.amc_dc419.transport import (
     TransportError,
@@ -58,6 +63,90 @@ async def test_send_commands_preserves_order_and_updates_state(
     assert coordinator.data.light_is_on is True
     assert coordinator.data.brightness == 96
     assert coordinator.transport_available is True
+
+
+async def test_initialize_restores_persisted_optimistic_state(
+    hass: HomeAssistant,
+) -> None:
+    """A recreated coordinator restores all state inferred before a restart."""
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    command_store = CommandStore(hass)
+    state_store = OptimisticStateStore(hass)
+    await command_store.async_store_command(
+        "controller", make_learned_command(LearnCommand.FAN_SPEED_6)
+    )
+    coordinator = AMCDC419Coordinator(
+        hass,
+        entry,
+        "controller",
+        command_store,
+        FakeTransport(),
+        ControllerOptions(repeat_delay=0, optimistic_timeout=60),
+        state_store,
+    )
+    await coordinator.async_initialize()
+    await coordinator.async_send_commands(
+        (LearnCommand.FAN_SPEED_6,),
+        lambda state: replace(
+            state,
+            fan_percentage=100,
+            fan_direction="reverse",
+            light_is_on=True,
+            brightness=160,
+        ),
+    )
+    await coordinator.async_shutdown()
+
+    restored_coordinator = AMCDC419Coordinator(
+        hass,
+        entry,
+        "controller",
+        command_store,
+        FakeTransport(),
+        ControllerOptions(repeat_delay=0, optimistic_timeout=60),
+        OptimisticStateStore(hass),
+    )
+    await restored_coordinator.async_initialize()
+
+    assert restored_coordinator.data.fan_percentage == 100
+    assert restored_coordinator.data.fan_direction == "reverse"
+    assert restored_coordinator.data.light_is_on is True
+    assert restored_coordinator.data.brightness == 160
+
+
+async def test_initialize_discards_expired_persisted_optimistic_state(
+    hass: HomeAssistant,
+) -> None:
+    """A restart cannot extend the lifetime of previously inferred state."""
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    state_store = OptimisticStateStore(hass)
+    await state_store.async_store_state(
+        "controller",
+        StoredOptimisticState(
+            fan_percentage=66,
+            fan_direction="forward",
+            light_is_on=True,
+            brightness=120,
+            updated_at=dt_util.utcnow() - timedelta(seconds=11),
+        ),
+    )
+    coordinator = AMCDC419Coordinator(
+        hass,
+        entry,
+        "controller",
+        CommandStore(hass),
+        FakeTransport(),
+        ControllerOptions(repeat_delay=0, optimistic_timeout=10),
+        state_store,
+    )
+
+    await coordinator.async_initialize()
+
+    assert coordinator.data.fan_percentage is None
+    assert coordinator.data.light_is_on is None
+    assert await state_store.async_get_state("controller") is None
 
 
 async def test_unavailable_send_marks_transport_unavailable(
@@ -178,6 +267,7 @@ async def test_send_propagates_after_retry_exhaustion(hass: HomeAssistant) -> No
         )
 
     assert coordinator.data.fan_percentage is None
+    assert await get_optimistic_state_store(hass).async_get_state("controller") is None
 
 
 async def test_send_waits_between_distinct_rf_commands(hass: HomeAssistant) -> None:
@@ -235,3 +325,4 @@ async def test_optimistic_state_expires_after_configured_timeout(
 
     assert coordinator.data.fan_percentage is None
     assert coordinator.transport_available is True
+    assert await get_optimistic_state_store(hass).async_get_state("controller") is None
