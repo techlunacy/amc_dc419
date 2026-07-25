@@ -85,7 +85,7 @@ Each configured controller exposes:
 | Entity | Behavior |
 | --- | --- |
 | Fan | On/off, six discrete speed commands, and forward/reverse direction. Requested percentages are mapped to the nearest supported speed. |
-| Light | On/off through one shared handset toggle, brightness, and 2000–6500 K colour temperature. Brightness uses directional presses; colour changes move forward through the handset's cyclic colour control. |
+| Light | On/off through one shared handset toggle and brightness. Use the `colour_cycle` raw command to advance the handset's relative colour mode by one step. |
 
 The RF handset is one-way: it cannot report physical state. Entity values are
 therefore optimistic and represent the last successful command sent through
@@ -102,12 +102,12 @@ Open **Configure** on the integration card to tune RF behavior per controller:
 | --- | ---: | --- |
 | Delay between RF presses | 0.25 seconds | Paces command batches. |
 | Brightness step size | 20 | Estimated brightness change per handset press. |
-| Colour temperature step size | 250 K | Estimated colour-temperature change per handset press. |
 | RF send retries | 1 | Retries transient transport failures. |
 | Optimistic state timeout | 30 seconds | Clears inferred state after the selected duration; set to 0 to retain it until reset. |
 
-The physical handset’s step sizes may differ. Adjust the two step-size options
-until Home Assistant’s inferred state tracks the controller acceptably.
+The physical handset’s brightness step size may differ. Adjust the brightness
+step-size option until Home Assistant’s inferred state tracks the controller
+acceptably.
 
 ## Actions
 
@@ -119,7 +119,7 @@ tools.
 | --- | --- |
 | `amc_dc419.sync_state` | Clear inferred Fan and Light state without sending RF. |
 | `amc_dc419.learn_command` | Learn and replace one named RF command. |
-| `amc_dc419.send_raw` | Send a stored command without changing optimistic state. |
+| `amc_dc419.send_raw` | Send a stored command, including `colour_cycle`, without changing optimistic state. |
 
 Example script action:
 
@@ -127,7 +127,7 @@ Example script action:
 action: amc_dc419.send_raw
 data:
   config_entry_id: YOUR_CONFIG_ENTRY_ID
-  command: fan_speed_3
+  command: colour_cycle
 ```
 
 ## Troubleshooting Learning

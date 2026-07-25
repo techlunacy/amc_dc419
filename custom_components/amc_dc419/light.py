@@ -8,7 +8,6 @@ from typing import Any, Final
 
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
-    ATTR_COLOR_TEMP_KELVIN,
     ColorMode,
     LightEntity,
 )
@@ -18,9 +17,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from . import AMCDC419ConfigEntry
 from .const import (
     DEFAULT_BRIGHTNESS,
-    DEFAULT_COLOR_TEMP_KELVIN,
-    MAX_COLOR_TEMP_KELVIN,
-    MIN_COLOR_TEMP_KELVIN,
     LearnCommand,
 )
 from .entity import AMCDC419Entity, AMCDC419EntityDescription
@@ -44,9 +40,7 @@ class AMCDC419Light(AMCDC419Entity, LightEntity):
     """Optimistically control the light portion of an AMC DC419 controller."""
 
     entity_description = LIGHT_DESCRIPTION
-    _attr_supported_color_modes = frozenset({ColorMode.COLOR_TEMP})
-    _attr_min_color_temp_kelvin = MIN_COLOR_TEMP_KELVIN
-    _attr_max_color_temp_kelvin = MAX_COLOR_TEMP_KELVIN
+    _attr_supported_color_modes = frozenset({ColorMode.BRIGHTNESS})
 
     def __init__(self, entry: AMCDC419ConfigEntry) -> None:
         """Initialize the light for a controller config entry."""
@@ -65,29 +59,17 @@ class AMCDC419Light(AMCDC419Entity, LightEntity):
     @property
     def color_mode(self) -> ColorMode:
         """Return the only supported color mode."""
-        return ColorMode.COLOR_TEMP
-
-    @property
-    def color_temp_kelvin(self) -> int | None:
-        """Return the optimistic color temperature in Kelvin."""
-        return self.coordinator.data.colour_temperature
+        return ColorMode.BRIGHTNESS
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn on the light and apply requested brightness or color temperature."""
+        """Turn on the light and apply a requested brightness."""
         requested_brightness = _validated_brightness(kwargs.get(ATTR_BRIGHTNESS))
-        requested_color_temp = _validated_color_temp(kwargs.get(ATTR_COLOR_TEMP_KELVIN))
         current_brightness = (
             self.coordinator.data.brightness
             if self.coordinator.data.brightness is not None
             else DEFAULT_BRIGHTNESS
         )
-        current_color_temp = (
-            self.coordinator.data.colour_temperature
-            if self.coordinator.data.colour_temperature is not None
-            else DEFAULT_COLOR_TEMP_KELVIN
-        )
         target_brightness = requested_brightness or current_brightness
-        target_color_temp = requested_color_temp or current_color_temp
 
         commands = [LearnCommand.LIGHT_TOGGLE]
         commands.extend(
@@ -99,14 +81,6 @@ class AMCDC419Light(AMCDC419Entity, LightEntity):
                 LearnCommand.BRIGHTNESS_DOWN,
             )
         )
-        commands.extend(
-            cyclic_adjustment_commands(
-                current_color_temp,
-                target_color_temp,
-                self.coordinator.options.colour_step_count,
-                LearnCommand.COLOUR_CYCLE,
-            )
-        )
 
         await self.coordinator.async_send_commands(
             commands,
@@ -114,7 +88,6 @@ class AMCDC419Light(AMCDC419Entity, LightEntity):
                 state,
                 light_is_on=True,
                 brightness=target_brightness,
-                colour_temperature=target_color_temp,
             ),
         )
 
@@ -145,33 +118,8 @@ def repeated_adjustment_commands(
     return (command,) * ceil(abs(difference) / step_size)
 
 
-def cyclic_adjustment_commands(
-    current: int,
-    requested: int,
-    step_size: int,
-    cycle_command: LearnCommand,
-) -> tuple[LearnCommand, ...]:
-    """Return forward-only RF presses, wrapping at the colour-temperature limit."""
-    if step_size <= 0:
-        raise ValueError("RF adjustment step size must be greater than zero")
-
-    colour_steps = ceil((MAX_COLOR_TEMP_KELVIN - MIN_COLOR_TEMP_KELVIN) / step_size)
-    cycle_length = colour_steps + 1
-    current_step = ceil((current - MIN_COLOR_TEMP_KELVIN) / step_size)
-    requested_step = ceil((requested - MIN_COLOR_TEMP_KELVIN) / step_size)
-    press_count = (requested_step - current_step) % cycle_length
-    return (cycle_command,) * press_count
-
-
 def _validated_brightness(value: object) -> int | None:
     """Return a Home Assistant brightness value when one was requested."""
     if not isinstance(value, int):
         return None
     return min(max(value, 1), DEFAULT_BRIGHTNESS)
-
-
-def _validated_color_temp(value: object) -> int | None:
-    """Return a supported Kelvin color temperature when one was requested."""
-    if not isinstance(value, int):
-        return None
-    return min(max(value, MIN_COLOR_TEMP_KELVIN), MAX_COLOR_TEMP_KELVIN)

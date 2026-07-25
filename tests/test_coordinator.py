@@ -16,7 +16,6 @@ from pytest_homeassistant_custom_component.common import (
 
 from custom_components.amc_dc419.const import (
     CONF_BRIGHTNESS_STEP_COUNT,
-    CONF_COLOUR_STEP_COUNT,
     CONF_OPTIMISTIC_TIMEOUT,
     CONF_REPEAT_DELAY,
     CONF_RETRY_COUNT,
@@ -110,7 +109,6 @@ def test_controller_options_use_defaults_for_invalid_values() -> None:
         options={
             CONF_REPEAT_DELAY: -1,
             CONF_BRIGHTNESS_STEP_COUNT: 0,
-            CONF_COLOUR_STEP_COUNT: "250",
             CONF_RETRY_COUNT: -1,
             CONF_OPTIMISTIC_TIMEOUT: -1,
         },

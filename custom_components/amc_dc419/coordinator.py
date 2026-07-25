@@ -16,12 +16,10 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
     CONF_BRIGHTNESS_STEP_COUNT,
-    CONF_COLOUR_STEP_COUNT,
     CONF_OPTIMISTIC_TIMEOUT,
     CONF_REPEAT_DELAY,
     CONF_RETRY_COUNT,
     DEFAULT_BRIGHTNESS_STEP_COUNT,
-    DEFAULT_COLOUR_STEP_COUNT,
     DEFAULT_OPTIMISTIC_TIMEOUT,
     DEFAULT_REPEAT_DELAY,
     DEFAULT_RETRY_COUNT,
@@ -51,7 +49,6 @@ class OptimisticControllerState:
     fan_direction: str | None = None
     light_is_on: bool | None = None
     brightness: int | None = None
-    colour_temperature: int | None = None
     transport_available: bool = False
 
     def as_diagnostics_data(self) -> dict[str, int | str | bool | None]:
@@ -61,7 +58,6 @@ class OptimisticControllerState:
             "fan_direction": self.fan_direction,
             "light_is_on": self.light_is_on,
             "brightness": self.brightness,
-            "colour_temperature": self.colour_temperature,
             "transport_available": self.transport_available,
         }
 
@@ -75,7 +71,6 @@ class ControllerOptions:
 
     repeat_delay: float = DEFAULT_REPEAT_DELAY
     brightness_step_count: int = DEFAULT_BRIGHTNESS_STEP_COUNT
-    colour_step_count: int = DEFAULT_COLOUR_STEP_COUNT
     retry_count: int = DEFAULT_RETRY_COUNT
     optimistic_timeout: int = DEFAULT_OPTIMISTIC_TIMEOUT
 
@@ -90,11 +85,6 @@ class ControllerOptions:
             brightness_step_count=_get_int_option(
                 options.get(CONF_BRIGHTNESS_STEP_COUNT),
                 DEFAULT_BRIGHTNESS_STEP_COUNT,
-                minimum=1,
-            ),
-            colour_step_count=_get_int_option(
-                options.get(CONF_COLOUR_STEP_COUNT),
-                DEFAULT_COLOUR_STEP_COUNT,
                 minimum=1,
             ),
             retry_count=_get_int_option(

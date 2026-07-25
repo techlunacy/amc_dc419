@@ -10,7 +10,6 @@ from homeassistant.core import HomeAssistant
 from custom_components.amc_dc419.const import LearnCommand
 from custom_components.amc_dc419.light import (
     AMCDC419Light,
-    cyclic_adjustment_commands,
     repeated_adjustment_commands,
 )
 
@@ -28,28 +27,6 @@ def test_brightness_calculation_uses_four_presses_for_example() -> None:
             LearnCommand.BRIGHTNESS_DOWN,
         )
         == (LearnCommand.BRIGHTNESS_UP,) * 4
-    )
-
-
-def test_colour_calculation_cycles_forward_and_wraps() -> None:
-    """Colour temperature changes use the one forward-only handset control."""
-    assert (
-        cyclic_adjustment_commands(
-            4_000,
-            4_450,
-            250,
-            LearnCommand.COLOUR_CYCLE,
-        )
-        == (LearnCommand.COLOUR_CYCLE,) * 2
-    )
-    assert (
-        cyclic_adjustment_commands(
-            4_000,
-            3_600,
-            250,
-            LearnCommand.COLOUR_CYCLE,
-        )
-        == (LearnCommand.COLOUR_CYCLE,) * 18
     )
 
 
@@ -80,17 +57,13 @@ async def test_light_entity_sends_ordered_brightness_commands(
     assert light.brightness == 160
 
 
-async def test_light_entity_sends_colour_temperature_commands(
+async def test_light_entity_turn_on_never_sends_colour_cycle(
     hass: HomeAssistant,
 ) -> None:
-    """Requested Kelvin temperature translates to repeated Colour Cycle commands."""
+    """A turn-on only sends the handset toggle."""
     entry, transport, command_store = await create_runtime_entry(hass)
-    for command in (LearnCommand.LIGHT_TOGGLE, LearnCommand.COLOUR_CYCLE):
-        await command_store.async_store_command(
-            "controller", make_learned_command(command)
-        )
-    entry.runtime_data.coordinator.async_set_updated_data(
-        replace(entry.runtime_data.coordinator.data, colour_temperature=4_000)
+    await command_store.async_store_command(
+        "controller", make_learned_command(LearnCommand.LIGHT_TOGGLE)
     )
     light = AMCDC419Light(entry)
 
@@ -98,10 +71,7 @@ async def test_light_entity_sends_colour_temperature_commands(
 
     assert [command.command for command in transport.sent] == [
         LearnCommand.LIGHT_TOGGLE,
-        LearnCommand.COLOUR_CYCLE,
-        LearnCommand.COLOUR_CYCLE,
     ]
-    assert light.color_temp_kelvin == 4_500
 
 
 async def test_light_entity_uses_toggle_command_to_turn_off(

@@ -46,7 +46,12 @@ class AMCDC419Fan(AMCDC419Entity, FanEntity):
     """Optimistically control the fan portion of an AMC DC419 controller."""
 
     entity_description = FAN_DESCRIPTION
-    _attr_supported_features = FanEntityFeature.SET_SPEED | FanEntityFeature.DIRECTION
+    _attr_supported_features = (
+        FanEntityFeature.SET_SPEED
+        | FanEntityFeature.DIRECTION
+        | FanEntityFeature.TURN_ON
+        | FanEntityFeature.TURN_OFF
+    )
 
     def __init__(self, entry: AMCDC419ConfigEntry) -> None:
         """Initialize the fan for a controller config entry."""

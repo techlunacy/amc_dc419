@@ -56,7 +56,6 @@
       "init": {
         "data": {
           "brightness_step_count": "Brightness step size",
-          "colour_step_count": "Colour temperature step size (K)",
           "optimistic_timeout": "Optimistic state timeout (seconds)",
           "repeat_delay": "Delay between RF presses (seconds)",
           "retry_count": "RF send retries"

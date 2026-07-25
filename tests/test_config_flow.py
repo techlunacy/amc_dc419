@@ -13,7 +13,6 @@ from custom_components.amc_dc419.const import (
     ATTR_REMOTE_COMMAND,
     CONF_AREA_ID,
     CONF_BRIGHTNESS_STEP_COUNT,
-    CONF_COLOUR_STEP_COUNT,
     CONF_FRIENDLY_NAME,
     CONF_OPTIMISTIC_TIMEOUT,
     CONF_REMOTE_DEVICE,
@@ -189,7 +188,6 @@ async def test_options_flow_saves_rf_behavior_options(hass: HomeAssistant) -> No
     options = {
         CONF_REPEAT_DELAY: 0.5,
         CONF_BRIGHTNESS_STEP_COUNT: 16,
-        CONF_COLOUR_STEP_COUNT: 200,
         CONF_RETRY_COUNT: 2,
         CONF_OPTIMISTIC_TIMEOUT: 60,
     }

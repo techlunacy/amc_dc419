@@ -22,7 +22,6 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_AREA_ID,
     CONF_BRIGHTNESS_STEP_COUNT,
-    CONF_COLOUR_STEP_COUNT,
     CONF_CONTROLLER_ID,
     CONF_FRIENDLY_NAME,
     CONF_OPTIMISTIC_TIMEOUT,
@@ -308,17 +307,6 @@ class AMCDC419OptionsFlow(OptionsFlowWithReload):
                         selector.NumberSelectorConfig(
                             min=1,
                             max=255,
-                            step=1,
-                            mode=selector.NumberSelectorMode.BOX,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_COLOUR_STEP_COUNT,
-                        default=options.colour_step_count,
-                    ): selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=1,
-                            max=2_000,
                             step=1,
                             mode=selector.NumberSelectorMode.BOX,
                         )
