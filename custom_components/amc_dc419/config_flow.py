@@ -10,19 +10,31 @@ from dataclasses import dataclass
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlowWithReload,
+)
+from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
     CONF_AREA_ID,
+    CONF_BRIGHTNESS_STEP_COUNT,
+    CONF_COLOUR_STEP_COUNT,
     CONF_CONTROLLER_ID,
     CONF_FRIENDLY_NAME,
+    CONF_OPTIMISTIC_TIMEOUT,
+    CONF_REPEAT_DELAY,
+    CONF_RETRY_COUNT,
     DOMAIN,
     LEARN_COMMAND_LABELS,
     LEARN_COMMANDS,
     LearnCommand,
     TransportType,
 )
+from .coordinator import ControllerOptions
 from .storage import get_command_store
 from .transport import (
     LearnedCommand,
@@ -70,6 +82,12 @@ class AMCDC419ConfigFlow(ConfigFlow, domain=DOMAIN):
         self._learn_command_index = 0
         self._learned_commands: dict[LearnCommand, LearnedCommand] = {}
         self._transport: RFTransport | None = None
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(_config_entry: ConfigEntry) -> AMCDC419OptionsFlow:
+        """Return the reloadable options flow for an AMC DC419 controller."""
+        return AMCDC419OptionsFlow()
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -174,6 +192,70 @@ class AMCDC419ConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Update controller metadata and validate replacement transport settings."""
+        entry = self._get_reconfigure_entry()
+        controller_id = entry.data.get(CONF_CONTROLLER_ID)
+        if not isinstance(controller_id, str):
+            return self.async_abort(reason="invalid_flow_state")
+
+        try:
+            current_configuration = TransportConfiguration.from_entry_data(entry.data)
+            transport_provider = get_transport_provider(
+                current_configuration.transport_type
+            )
+        except TransportConfigurationError:
+            return self.async_abort(reason="invalid_flow_state")
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            friendly_name = str(user_input[CONF_FRIENDLY_NAME]).strip()
+            if not friendly_name or len(friendly_name) > 255:
+                errors[CONF_FRIENDLY_NAME] = "invalid_name"
+            else:
+                try:
+                    transport_configuration = (
+                        await transport_provider.async_create_configuration(
+                            self.hass,
+                            controller_id,
+                            user_input,
+                        )
+                    )
+                except (TransportConfigurationError, TransportError):
+                    _LOGGER.warning(
+                        "Unable to reconfigure AMC DC419 RF transport",
+                        extra={"transport": transport_provider.transport_type.value},
+                    )
+                    errors["base"] = "cannot_connect"
+                else:
+                    data_updates = {
+                        CONF_FRIENDLY_NAME: friendly_name,
+                        CONF_AREA_ID: str(user_input[CONF_AREA_ID]),
+                        **transport_configuration.as_entry_data(),
+                    }
+                    return self.async_update_reload_and_abort(
+                        entry,
+                        title=friendly_name,
+                        data_updates=data_updates,
+                    )
+
+        friendly_name = entry.data.get(CONF_FRIENDLY_NAME, "")
+        area_id = entry.data.get(CONF_AREA_ID, "")
+        schema: dict[object, object] = {
+            vol.Required(
+                CONF_FRIENDLY_NAME, default=friendly_name
+            ): selector.TextSelector(),
+            vol.Required(CONF_AREA_ID, default=area_id): selector.AreaSelector(),
+        }
+        schema.update(transport_provider.reconfigure_flow_schema(current_configuration))
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(schema),
+            errors=errors,
+        )
+
     @staticmethod
     def _create_controller_id(
         friendly_name: str, transport_data: Mapping[str, object]
@@ -192,3 +274,76 @@ class AMCDC419ConfigFlow(ConfigFlow, domain=DOMAIN):
             separators=(",", ":"),
         )
         return hashlib.sha256(identity.encode()).hexdigest()
+
+
+class AMCDC419OptionsFlow(OptionsFlowWithReload):
+    """Manage runtime options for an AMC DC419 controller."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show and save the controller RF behavior options."""
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+
+        options = ControllerOptions.from_entry(self.config_entry)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_REPEAT_DELAY, default=options.repeat_delay
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0,
+                            max=5,
+                            step=0.05,
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_BRIGHTNESS_STEP_COUNT,
+                        default=options.brightness_step_count,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=1,
+                            max=255,
+                            step=1,
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_COLOUR_STEP_COUNT,
+                        default=options.colour_step_count,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=1,
+                            max=2_000,
+                            step=1,
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_RETRY_COUNT, default=options.retry_count
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0,
+                            max=5,
+                            step=1,
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_OPTIMISTIC_TIMEOUT,
+                        default=options.optimistic_timeout,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0,
+                            max=3_600,
+                            step=1,
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                }
+            ),
+        )

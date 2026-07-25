@@ -1,0 +1,64 @@
+sync_state:
+  name: Reset optimistic state
+  description: Clear the inferred state held for an AMC DC419 controller.
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        text:
+
+learn_command:
+  name: Relearn RF command
+  description: Learn and replace one RF command using the configured transport.
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        text:
+    command:
+      required: true
+      selector:
+        select:
+          options:
+            - light_on
+            - light_off
+            - brightness_up
+            - brightness_down
+            - colour_up
+            - colour_down
+            - fan_off
+            - fan_speed_1
+            - fan_speed_2
+            - fan_speed_3
+            - fan_speed_4
+            - fan_speed_5
+            - fan_speed_6
+            - direction_toggle
+
+send_raw:
+  name: Send stored RF command
+  description: Send one previously learned command without changing optimistic state.
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        text:
+    command:
+      required: true
+      selector:
+        select:
+          options:
+            - light_on
+            - light_off
+            - brightness_up
+            - brightness_down
+            - colour_up
+            - colour_down
+            - fan_off
+            - fan_speed_1
+            - fan_speed_2
+            - fan_speed_3
+            - fan_speed_4
+            - fan_speed_5
+            - fan_speed_6
+            - direction_toggle

@@ -184,6 +184,13 @@ class RFTransportProvider(ABC):
     def config_flow_schema(self) -> Mapping[object, object]:
         """Return the configuration fields needed by this transport."""
 
+    def reconfigure_flow_schema(
+        self, configuration: TransportConfiguration
+    ) -> Mapping[object, object]:
+        """Return editable configuration fields, defaulting to initial setup."""
+        del configuration
+        return self.config_flow_schema()
+
     @abstractmethod
     async def async_create_configuration(
         self,

@@ -2,22 +2,32 @@
 
 from __future__ import annotations
 
-from homeassistant.config_entries import SOURCE_USER
+from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_USER
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import HomeAssistantError
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.amc_dc419.config_flow import AMCDC419ConfigFlow
 from custom_components.amc_dc419.const import (
     ATTR_REMOTE_COMMAND,
     CONF_AREA_ID,
+    CONF_BRIGHTNESS_STEP_COUNT,
+    CONF_COLOUR_STEP_COUNT,
     CONF_FRIENDLY_NAME,
+    CONF_OPTIMISTIC_TIMEOUT,
+    CONF_REMOTE_DEVICE,
     CONF_REMOTE_ENTITY_ID,
+    CONF_REPEAT_DELAY,
+    CONF_RETRY_COUNT,
+    CONF_TRANSPORT,
+    CONF_TRANSPORT_TYPE,
     DOMAIN,
     LEARN_COMMANDS,
     REMOTE_DOMAIN,
     REMOTE_SERVICE_LEARN_COMMAND,
     REMOTE_SERVICE_SEND_COMMAND,
+    TransportType,
 )
 from custom_components.amc_dc419.storage import get_command_store
 
@@ -128,3 +138,83 @@ def test_controller_identity_ignores_area() -> None:
     )
 
     assert office_id == upstairs_id
+
+
+async def test_options_flow_saves_rf_behavior_options(hass: HomeAssistant) -> None:
+    """The options UI persists every command-timing and state-expiry control."""
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    options = {
+        CONF_REPEAT_DELAY: 0.5,
+        CONF_BRIGHTNESS_STEP_COUNT: 16,
+        CONF_COLOUR_STEP_COUNT: 200,
+        CONF_RETRY_COUNT: 2,
+        CONF_OPTIMISTIC_TIMEOUT: 60,
+    }
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], options
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options == options
+
+
+async def test_reconfigure_updates_metadata_and_transport_settings(
+    hass: HomeAssistant,
+) -> None:
+    """A user can move a controller to another validated Broadlink remote."""
+
+    async def handle_remote(_call: ServiceCall) -> None:
+        """Expose the services needed to validate Broadlink configuration."""
+
+    hass.states.async_set("remote.office", "on")
+    hass.states.async_set("remote.lounge", "on")
+    hass.services.async_register(
+        REMOTE_DOMAIN, REMOTE_SERVICE_LEARN_COMMAND, handle_remote
+    )
+    hass.services.async_register(
+        REMOTE_DOMAIN, REMOTE_SERVICE_SEND_COMMAND, handle_remote
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Office fan",
+        unique_id="controller",
+        data={
+            "controller_id": "controller",
+            CONF_FRIENDLY_NAME: "Office fan",
+            CONF_AREA_ID: "office",
+            CONF_TRANSPORT_TYPE: TransportType.BROADLINK.value,
+            CONF_TRANSPORT: {
+                CONF_REMOTE_ENTITY_ID: "remote.office",
+                CONF_REMOTE_DEVICE: "amc_dc419_controller",
+            },
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_FRIENDLY_NAME: "Lounge fan",
+            CONF_AREA_ID: "lounge",
+            CONF_REMOTE_ENTITY_ID: "remote.lounge",
+        },
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert entry.title == "Lounge fan"
+    assert entry.data["controller_id"] == "controller"
+    assert entry.data[CONF_AREA_ID] == "lounge"
+    assert entry.data[CONF_TRANSPORT][CONF_REMOTE_ENTITY_ID] == "remote.lounge"

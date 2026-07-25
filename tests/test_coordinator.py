@@ -3,15 +3,35 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import timedelta
+from unittest.mock import AsyncMock, call, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
-from custom_components.amc_dc419.const import DOMAIN, LearnCommand
-from custom_components.amc_dc419.coordinator import AMCDC419Coordinator
+from custom_components.amc_dc419.const import (
+    CONF_BRIGHTNESS_STEP_COUNT,
+    CONF_COLOUR_STEP_COUNT,
+    CONF_OPTIMISTIC_TIMEOUT,
+    CONF_REPEAT_DELAY,
+    CONF_RETRY_COUNT,
+    DOMAIN,
+    LearnCommand,
+)
+from custom_components.amc_dc419.coordinator import (
+    AMCDC419Coordinator,
+    ControllerOptions,
+)
 from custom_components.amc_dc419.storage import CommandStore
-from custom_components.amc_dc419.transport import TransportUnavailableError
+from custom_components.amc_dc419.transport import (
+    TransportError,
+    TransportUnavailableError,
+)
 
 from .conftest import FakeTransport, make_learned_command
 
@@ -80,4 +100,140 @@ async def test_reset_optimistic_state_preserves_availability(
 
     assert coordinator.data.fan_percentage is None
     assert coordinator.data.light_is_on is None
+    assert coordinator.transport_available is True
+
+
+def test_controller_options_use_defaults_for_invalid_values() -> None:
+    """Invalid persisted options cannot create unsafe runtime command behavior."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        options={
+            CONF_REPEAT_DELAY: -1,
+            CONF_BRIGHTNESS_STEP_COUNT: 0,
+            CONF_COLOUR_STEP_COUNT: "250",
+            CONF_RETRY_COUNT: -1,
+            CONF_OPTIMISTIC_TIMEOUT: -1,
+        },
+    )
+
+    assert ControllerOptions.from_entry(entry) == ControllerOptions()
+
+
+async def test_send_retries_transient_errors_then_updates_state(
+    hass: HomeAssistant,
+) -> None:
+    """A transient send failure retries once and only publishes after success."""
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    store = CommandStore(hass)
+    transport = FakeTransport()
+    transport.transient_send_failures = 1
+    coordinator = AMCDC419Coordinator(
+        hass,
+        entry,
+        "controller",
+        store,
+        transport,
+        ControllerOptions(repeat_delay=0, retry_count=1, optimistic_timeout=0),
+    )
+    await store.async_store_command(
+        "controller", make_learned_command(LearnCommand.FAN_SPEED_1)
+    )
+    await coordinator.async_initialize()
+
+    await coordinator.async_send_commands(
+        (LearnCommand.FAN_SPEED_1,),
+        lambda state: replace(state, fan_percentage=16),
+    )
+
+    assert [command.command for command in transport.send_attempts] == [
+        LearnCommand.FAN_SPEED_1,
+        LearnCommand.FAN_SPEED_1,
+    ]
+    assert coordinator.data.fan_percentage == 16
+
+
+async def test_send_propagates_after_retry_exhaustion(hass: HomeAssistant) -> None:
+    """An exhausted transient error does not update the optimistic state."""
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    store = CommandStore(hass)
+    transport = FakeTransport()
+    transport.transient_send_failures = 2
+    coordinator = AMCDC419Coordinator(
+        hass,
+        entry,
+        "controller",
+        store,
+        transport,
+        ControllerOptions(repeat_delay=0, retry_count=1, optimistic_timeout=0),
+    )
+    await store.async_store_command(
+        "controller", make_learned_command(LearnCommand.FAN_SPEED_1)
+    )
+    await coordinator.async_initialize()
+
+    with pytest.raises(TransportError):
+        await coordinator.async_send_commands(
+            (LearnCommand.FAN_SPEED_1,),
+            lambda state: replace(state, fan_percentage=16),
+        )
+
+    assert coordinator.data.fan_percentage is None
+
+
+async def test_send_waits_between_distinct_rf_commands(hass: HomeAssistant) -> None:
+    """A configured repeat delay separates commands in a single RF batch."""
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    store = CommandStore(hass)
+    commands = (LearnCommand.LIGHT_ON, LearnCommand.BRIGHTNESS_UP)
+    for command in commands:
+        await store.async_store_command("controller", make_learned_command(command))
+    coordinator = AMCDC419Coordinator(
+        hass,
+        entry,
+        "controller",
+        store,
+        FakeTransport(),
+        ControllerOptions(repeat_delay=0.25, optimistic_timeout=0),
+    )
+    await coordinator.async_initialize()
+
+    with patch(
+        "custom_components.amc_dc419.coordinator.asyncio.sleep", new=AsyncMock()
+    ) as sleep:
+        await coordinator.async_send_commands(commands)
+
+    assert sleep.await_args_list == [call(0.25)]
+
+
+async def test_optimistic_state_expires_after_configured_timeout(
+    hass: HomeAssistant,
+) -> None:
+    """One-way controller state is cleared once its configured expiry elapses."""
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    store = CommandStore(hass)
+    await store.async_store_command(
+        "controller", make_learned_command(LearnCommand.FAN_SPEED_1)
+    )
+    coordinator = AMCDC419Coordinator(
+        hass,
+        entry,
+        "controller",
+        store,
+        FakeTransport(),
+        ControllerOptions(repeat_delay=0, optimistic_timeout=10),
+    )
+    await coordinator.async_initialize()
+
+    await coordinator.async_send_commands(
+        (LearnCommand.FAN_SPEED_1,),
+        lambda state: replace(state, fan_percentage=16),
+    )
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=10))
+    await hass.async_block_till_done()
+
+    assert coordinator.data.fan_percentage is None
     assert coordinator.transport_available is True

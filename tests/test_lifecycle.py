@@ -10,9 +10,6 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.amc_dc419 import (
     AMCDC419ConfigEntry,
     async_migrate_entry,
-    async_remove_entry,
-    async_setup_entry,
-    async_unload_entry,
 )
 from custom_components.amc_dc419.const import (
     CONF_AREA_ID,
@@ -92,15 +89,16 @@ async def test_entry_lifecycle_initializes_and_removes_commands(
         },
     )
     entry.add_to_hass(hass)
-    typed_entry = cast(AMCDC419ConfigEntry, entry)
     await get_command_store(hass).async_store_command(
         "controller", make_learned_command(LearnCommand.FAN_OFF)
     )
 
-    assert await async_setup_entry(hass, typed_entry) is True
+    assert await hass.config_entries.async_setup(entry.entry_id) is True
+    await hass.async_block_till_done()
+    typed_entry = cast(AMCDC419ConfigEntry, entry)
     assert typed_entry.runtime_data.coordinator.transport_available is True
-    assert await async_unload_entry(hass, typed_entry) is True
+    assert await hass.config_entries.async_unload(entry.entry_id) is True
 
-    await async_remove_entry(hass, typed_entry)
+    await hass.config_entries.async_remove(entry.entry_id)
 
     assert await get_command_store(hass).async_get_commands("controller") == {}

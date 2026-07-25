@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from homeassistant.config_entries import (
-    ConfigEntry,
-)
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers.typing import ConfigType
@@ -17,9 +15,10 @@ from .const import (
     CONF_FRIENDLY_NAME,
     CONF_REMOTE_DEVICE,
     CONF_REMOTE_ENTITY_ID,
+    PLATFORMS,
     TransportType,
 )
-from .coordinator import AMCDC419Coordinator
+from .coordinator import AMCDC419Coordinator, ControllerOptions
 from .storage import CommandStore, get_command_store
 from .transport import (
     RFTransport,
@@ -42,8 +41,11 @@ class AMCDC419RuntimeData:
 type AMCDC419ConfigEntry = ConfigEntry[AMCDC419RuntimeData]
 
 
-async def async_setup(_hass: HomeAssistant, _config: ConfigType) -> bool:
+async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
     """Set up the AMC DC419 integration domain."""
+    from .services import async_register_services
+
+    await async_register_services(hass)
     return True
 
 
@@ -61,6 +63,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AMCDC419ConfigEntry) -> 
             controller_id,
             command_store,
             transport,
+            ControllerOptions.from_entry(entry),
         )
         await coordinator.async_initialize()
     except TransportConfigurationError as err:
@@ -73,6 +76,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AMCDC419ConfigEntry) -> 
         coordinator=coordinator,
         transport=transport,
     )
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
@@ -117,10 +121,11 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def async_unload_entry(_hass: HomeAssistant, entry: AMCDC419ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: AMCDC419ConfigEntry) -> bool:
     """Unload an AMC DC419 controller config entry."""
-    await entry.runtime_data.coordinator.async_shutdown()
-    return True
+    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        await entry.runtime_data.coordinator.async_shutdown()
+    return unload_ok
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: AMCDC419ConfigEntry) -> None:

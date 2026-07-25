@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title>AMC DC419 ceiling fan and light</title>
+  <rect width="256" height="256" fill="#1d5d72"/>
+  <circle cx="128" cy="128" r="25" fill="#f7c948"/>
+  <path d="M128 103C99 42 55 42 42 59c-13 17 15 48 61 69M153 128c61-29 61-73 44-86-17-13-48 15-69 61M128 153c29 61 73 61 86 44 13-17-15-48-61-69M103 128C42 157 42 201 59 214c17 13 48-15 69-61" fill="#e9f5f7"/>
+  <circle cx="128" cy="128" r="17" fill="#f7c948"/>
+</svg>

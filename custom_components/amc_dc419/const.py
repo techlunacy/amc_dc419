@@ -18,6 +18,11 @@ CONF_REMOTE_DEVICE: Final = "remote_device"
 CONF_REMOTE_ENTITY_ID: Final = "remote_entity_id"
 CONF_TRANSPORT: Final = "transport"
 CONF_TRANSPORT_TYPE: Final = "transport_type"
+CONF_REPEAT_DELAY: Final = "repeat_delay"
+CONF_BRIGHTNESS_STEP_COUNT: Final = "brightness_step_count"
+CONF_COLOUR_STEP_COUNT: Final = "colour_step_count"
+CONF_RETRY_COUNT: Final = "retry_count"
+CONF_OPTIMISTIC_TIMEOUT: Final = "optimistic_timeout"
 
 DATA_COMMAND_STORE: Final = "command_store"
 
@@ -31,10 +36,15 @@ ATTR_TIMEOUT: Final = "timeout"
 
 DEFAULT_LEARN_TIMEOUT: Final = 30
 DEFAULT_REPEAT_DELAY: Final = 0.25
-DEFAULT_BRIGHTNESS_STEP_COUNT: Final = 16
-DEFAULT_COLOUR_STEP_COUNT: Final = 16
+DEFAULT_BRIGHTNESS_STEP_COUNT: Final = 20
+DEFAULT_COLOUR_STEP_COUNT: Final = 250
 DEFAULT_RETRY_COUNT: Final = 1
 DEFAULT_OPTIMISTIC_TIMEOUT: Final = 30
+
+DEFAULT_BRIGHTNESS: Final = 255
+MIN_COLOR_TEMP_KELVIN: Final = 2_000
+MAX_COLOR_TEMP_KELVIN: Final = 6_500
+DEFAULT_COLOR_TEMP_KELVIN: Final = 4_000
 
 
 class TransportType(StrEnum):

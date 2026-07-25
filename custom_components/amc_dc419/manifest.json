@@ -1,8 +1,11 @@
 {
   "domain": "amc_dc419",
   "name": "AMC DC419",
+  "codeowners": ["@techlunacy"],
   "config_flow": true,
+  "documentation": "https://github.com/techlunacy/amc_dc419",
   "integration_type": "device",
   "iot_class": "local_push",
+  "issue_tracker": "https://github.com/techlunacy/amc_dc419/issues",
   "version": "0.1.0"
 }

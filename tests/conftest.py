@@ -3,11 +3,25 @@
 from __future__ import annotations
 
 import pytest
+from homeassistant.core import HomeAssistant
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.amc_dc419.const import LearnCommand, TransportType
+from custom_components.amc_dc419 import AMCDC419RuntimeData
+from custom_components.amc_dc419.const import (
+    CONF_CONTROLLER_ID,
+    DOMAIN,
+    LearnCommand,
+    TransportType,
+)
+from custom_components.amc_dc419.coordinator import (
+    AMCDC419Coordinator,
+    ControllerOptions,
+)
+from custom_components.amc_dc419.storage import CommandStore
 from custom_components.amc_dc419.transport import (
     LearnedCommand,
     RFTransport,
+    TransportError,
     TransportUnavailableError,
 )
 
@@ -36,6 +50,8 @@ class FakeTransport(RFTransport):
         self.fail_validate = False
         self.learned: list[LearnCommand] = []
         self.sent: list[LearnedCommand] = []
+        self.send_attempts: list[LearnedCommand] = []
+        self.transient_send_failures = 0
 
     @property
     def transport_type(self) -> TransportType:
@@ -56,6 +72,39 @@ class FakeTransport(RFTransport):
     async def async_send(self, command: LearnedCommand) -> None:
         """Record a sent command or simulate an unavailable transport."""
         await self.async_validate()
+        self.send_attempts.append(command)
         if self.fail_send:
             raise TransportUnavailableError("Test transport is unavailable")
+        if self.transient_send_failures:
+            self.transient_send_failures -= 1
+            raise TransportError("Test transport failed transiently")
         self.sent.append(command)
+
+
+async def create_runtime_entry(
+    hass: HomeAssistant,
+    options: ControllerOptions | None = None,
+) -> tuple[MockConfigEntry, FakeTransport, CommandStore]:
+    """Create one loaded-in-memory entry runtime for entity and service tests."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_CONTROLLER_ID: "controller"},
+    )
+    entry.add_to_hass(hass)
+    command_store = CommandStore(hass)
+    transport = FakeTransport()
+    coordinator = AMCDC419Coordinator(
+        hass,
+        entry,
+        "controller",
+        command_store,
+        transport,
+        options,
+    )
+    await coordinator.async_initialize()
+    entry.runtime_data = AMCDC419RuntimeData(
+        command_store=command_store,
+        coordinator=coordinator,
+        transport=transport,
+    )
+    return entry, transport, command_store

@@ -1,9 +1,10 @@
 {
   "config": {
     "abort": {
-      "invalid_flow_state": "The learning session has expired. Start the setup again."
+      "invalid_flow_state": "The configuration session has expired. Start again."
     },
     "error": {
+      "cannot_connect": "The selected Broadlink remote is unavailable or does not provide the required services.",
       "invalid_name": "Enter a controller name between 1 and 255 characters.",
       "invalid_remote": "Select an available remote entity.",
       "unable_to_learn": "The remote could not learn this RF command. Confirm it supports RF learning, then try again."
@@ -13,6 +14,15 @@
         "description": "Press Submit to start learning **{command}**. When the selected Broadlink remote is ready, press the matching button on the AMC DC419 handset.",
         "title": "Learn RF command"
       },
+      "reconfigure": {
+        "data": {
+          "area_id": "Area",
+          "friendly_name": "Name",
+          "remote_entity_id": "Broadlink remote"
+        },
+        "description": "Update the controller details or select a replacement Broadlink remote. Existing learned RF commands are retained.",
+        "title": "Reconfigure AMC DC419 controller"
+      },
       "user": {
         "data": {
           "area_id": "Area",
@@ -21,6 +31,38 @@
         },
         "description": "Choose the Broadlink remote that will learn and send this controller's RF commands.",
         "title": "Add AMC DC419 controller"
+      }
+    }
+  },
+  "entity": {
+    "fan": {
+      "fan": {
+        "name": "Fan"
+      }
+    },
+    "light": {
+      "light": {
+        "name": "Light"
+      }
+    }
+  },
+  "exceptions": {
+    "unable_to_learn": {
+      "message": "The selected remote could not learn the RF command."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "brightness_step_count": "Brightness step size",
+          "colour_step_count": "Colour temperature step size (K)",
+          "optimistic_timeout": "Optimistic state timeout (seconds)",
+          "repeat_delay": "Delay between RF presses (seconds)",
+          "retry_count": "RF send retries"
+        },
+        "description": "Tune RF command pacing and how Home Assistant estimates one-way controller state.",
+        "title": "AMC DC419 options"
       }
     }
   }

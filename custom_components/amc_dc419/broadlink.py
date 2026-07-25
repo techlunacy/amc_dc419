@@ -178,6 +178,21 @@ class BroadlinkTransportProvider(RFTransportProvider):
             )
         }
 
+    def reconfigure_flow_schema(
+        self, configuration: TransportConfiguration
+    ) -> Mapping[object, object]:
+        """Return the selected Broadlink remote as the editable default."""
+        remote_entity_id = configuration.settings.get(CONF_REMOTE_ENTITY_ID)
+        if not isinstance(remote_entity_id, str):
+            raise TransportConfigurationError("Broadlink settings are incomplete")
+        return {
+            vol.Required(
+                CONF_REMOTE_ENTITY_ID, default=remote_entity_id
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=REMOTE_DOMAIN)
+            )
+        }
+
     async def async_create_configuration(
         self,
         hass: HomeAssistant,
