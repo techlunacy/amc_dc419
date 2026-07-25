@@ -158,7 +158,14 @@ class BroadlinkTransport(RFTransport):
                 target={ATTR_ENTITY_ID: self._remote_entity_id},
                 blocking=True,
             )
-        except HomeAssistantError as err:
+        except (HomeAssistantError, ValueError) as err:
+            if service == REMOTE_SERVICE_SEND_COMMAND and str(err).startswith(
+                "Command not found:"
+            ):
+                raise TransportError(
+                    "Broadlink is missing a learned RF command. Relearn the "
+                    "command through the AMC DC419 integration before trying again."
+                ) from err
             raise TransportError("Broadlink RF operation failed") from err
 
 

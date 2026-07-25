@@ -18,7 +18,9 @@ from custom_components.amc_dc419.const import (
     TransportType,
 )
 from custom_components.amc_dc419.transport import (
+    LearnedCommand,
     TransportConfiguration,
+    TransportError,
     TransportUnavailableError,
 )
 
@@ -85,3 +87,47 @@ async def test_broadlink_transport_is_unavailable_without_remote_state(
 
     with pytest.raises(TransportUnavailableError, match="unavailable"):
         await transport.async_validate()
+
+
+async def test_broadlink_transport_explains_missing_learned_command(
+    hass: HomeAssistant,
+) -> None:
+    """A missing Broadlink code instructs the user to relearn the RF command."""
+
+    async def handle_learn(_call: ServiceCall) -> None:
+        """Expose the learning service required by transport validation."""
+
+    async def handle_send(_call: ServiceCall) -> None:
+        """Simulate Broadlink's error for a code it did not store."""
+        raise ValueError("Command not found: 'light_toggle'")
+
+    hass.states.async_set("remote.office", "on")
+    hass.services.async_register(
+        REMOTE_DOMAIN, REMOTE_SERVICE_LEARN_COMMAND, handle_learn
+    )
+    hass.services.async_register(
+        REMOTE_DOMAIN, REMOTE_SERVICE_SEND_COMMAND, handle_send
+    )
+    transport = BroadlinkTransport(
+        hass,
+        TransportConfiguration(
+            transport_type=TransportType.BROADLINK,
+            settings={
+                CONF_REMOTE_ENTITY_ID: "remote.office",
+                CONF_REMOTE_DEVICE: "amc_dc419_office",
+            },
+        ),
+    )
+
+    learned_command = LearnedCommand(
+        command=LearnCommand.LIGHT_TOGGLE,
+        transport_type=TransportType.BROADLINK,
+        payload={
+            ATTR_REMOTE_DEVICE: "amc_dc419_office",
+            ATTR_REMOTE_COMMAND: LearnCommand.LIGHT_TOGGLE.value,
+        },
+        learned_at="2026-07-25T00:00:00+00:00",
+    )
+
+    with pytest.raises(TransportError, match="Relearn the command"):
+        await transport.async_send(learned_command)

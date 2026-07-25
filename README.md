@@ -66,9 +66,11 @@ It then requests each RF command in order:
 | Fan | Fan Off, Speed 1, Speed 2, Speed 3, Speed 4, Speed 5, Speed 6 |
 | Direction | Direction Toggle |
 
-The flow stores nothing until every command has been learned successfully. If
-learning fails, correct the remote setup and retry the current step; an
-incomplete controller command set is not persisted.
+The flow stores nothing until every command has been learned successfully. For
+each RF command, follow the Broadlink notifications: press and hold the handset
+button during the frequency sweep, then press it again when prompted to capture
+the code. If learning fails, correct the remote setup and retry the current
+step; an incomplete controller command set is not persisted.
 
 The integration can be reconfigured from the Devices & services page to
 rename the controller, change its area, or select a replacement Broadlink
@@ -133,6 +135,7 @@ data:
 | The selected remote is rejected or unavailable | Verify the entity exists, is not `unknown` or `unavailable`, and is a usable Broadlink remote. |
 | Setup reports it cannot connect | Confirm both `remote.learn_command` and `remote.send_command` are registered by the selected remote integration. |
 | A command cannot be learned | Confirm the remote supports RF learning, keep the handset close to it, and use the exact requested handset button. |
+| `Command not found: 'light_toggle'` | The Broadlink remote did not save the RF capture. Use `amc_dc419.learn_command` for `light_toggle`, following the hold-then-press RF prompts, then retry. |
 | A learning flow is abandoned | Start a new flow. Partial command sets are intentionally not retained. |
 | Entities are unavailable | Confirm the selected Broadlink remote is available and both required `remote` services are registered. |
 | Entity state does not match the controller | The remote is one-way. Reset the inferred state, then control the device through Home Assistant; tune the RF step sizes if levels drift. |
