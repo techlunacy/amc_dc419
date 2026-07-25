@@ -52,6 +52,7 @@ class AMCDC419Fan(AMCDC419Entity, FanEntity):
         | FanEntityFeature.TURN_ON
         | FanEntityFeature.TURN_OFF
     )
+    _attr_speed_count = 6
 
     def __init__(self, entry: AMCDC419ConfigEntry) -> None:
         """Initialize the fan for a controller config entry."""

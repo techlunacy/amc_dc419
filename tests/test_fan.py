@@ -61,6 +61,8 @@ async def test_fan_entity_supports_turn_actions(hass: HomeAssistant) -> None:
 
     assert fan.supported_features & FanEntityFeature.TURN_ON
     assert fan.supported_features & FanEntityFeature.TURN_OFF
+    assert fan.speed_count == 6
+    assert fan.percentage_step == 100 / 6
     assert [command.command for command in transport.sent] == [
         LearnCommand.FAN_SPEED_1,
         LearnCommand.FAN_OFF,
