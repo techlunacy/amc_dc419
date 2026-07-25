@@ -1,0 +1,27 @@
+{
+  "config": {
+    "abort": {
+      "invalid_flow_state": "The learning session has expired. Start the setup again."
+    },
+    "error": {
+      "invalid_name": "Enter a controller name between 1 and 255 characters.",
+      "invalid_remote": "Select an available remote entity.",
+      "unable_to_learn": "The remote could not learn this RF command. Confirm it supports RF learning, then try again."
+    },
+    "step": {
+      "learn_command": {
+        "description": "Press Submit to start learning **{command}**. When the selected Broadlink remote is ready, press the matching button on the AMC DC419 handset.",
+        "title": "Learn RF command"
+      },
+      "user": {
+        "data": {
+          "area_id": "Area",
+          "friendly_name": "Name",
+          "remote_entity_id": "Broadlink remote"
+        },
+        "description": "Choose the Broadlink remote that will learn and send this controller's RF commands.",
+        "title": "Add AMC DC419 controller"
+      }
+    }
+  }
+}
