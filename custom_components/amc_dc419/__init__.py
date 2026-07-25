@@ -6,10 +6,10 @@ from dataclasses import dataclass
 
 from homeassistant.config_entries import (
     ConfigEntry,
-    ConfigEntryError,
-    ConfigEntryNotReady,
 )
-from homeassistant.core import ConfigType, HomeAssistant
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
+from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     CONF_AREA_ID,
@@ -42,7 +42,7 @@ class AMCDC419RuntimeData:
 type AMCDC419ConfigEntry = ConfigEntry[AMCDC419RuntimeData]
 
 
-async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
+async def async_setup(_hass: HomeAssistant, _config: ConfigType) -> bool:
     """Set up the AMC DC419 integration domain."""
     return True
 
@@ -88,15 +88,12 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     area_id = entry.data.get(CONF_AREA_ID)
     remote_entity_id = entry.data.get(CONF_REMOTE_ENTITY_ID)
     remote_device = entry.data.get(CONF_REMOTE_DEVICE)
-    if not all(
-        isinstance(value, str)
-        for value in (
-            controller_id,
-            friendly_name,
-            area_id,
-            remote_entity_id,
-            remote_device,
-        )
+    if (
+        not isinstance(controller_id, str)
+        or not isinstance(friendly_name, str)
+        or not isinstance(area_id, str)
+        or not isinstance(remote_entity_id, str)
+        or not isinstance(remote_device, str)
     ):
         return False
 
@@ -120,7 +117,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: AMCDC419ConfigEntry) -> bool:
+async def async_unload_entry(_hass: HomeAssistant, entry: AMCDC419ConfigEntry) -> bool:
     """Unload an AMC DC419 controller config entry."""
     await entry.runtime_data.coordinator.async_shutdown()
     return True
