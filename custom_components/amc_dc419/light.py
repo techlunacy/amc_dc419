@@ -100,12 +100,11 @@ class AMCDC419Light(AMCDC419Entity, LightEntity):
             )
         )
         commands.extend(
-            repeated_adjustment_commands(
+            cyclic_adjustment_commands(
                 current_color_temp,
                 target_color_temp,
                 self.coordinator.options.colour_step_count,
-                LearnCommand.COLOUR_UP,
-                LearnCommand.COLOUR_DOWN,
+                LearnCommand.COLOUR_CYCLE,
             )
         )
 
@@ -144,6 +143,24 @@ def repeated_adjustment_commands(
 
     command = increase_command if difference > 0 else decrease_command
     return (command,) * ceil(abs(difference) / step_size)
+
+
+def cyclic_adjustment_commands(
+    current: int,
+    requested: int,
+    step_size: int,
+    cycle_command: LearnCommand,
+) -> tuple[LearnCommand, ...]:
+    """Return forward-only RF presses, wrapping at the colour-temperature limit."""
+    if step_size <= 0:
+        raise ValueError("RF adjustment step size must be greater than zero")
+
+    colour_steps = ceil((MAX_COLOR_TEMP_KELVIN - MIN_COLOR_TEMP_KELVIN) / step_size)
+    cycle_length = colour_steps + 1
+    current_step = ceil((current - MIN_COLOR_TEMP_KELVIN) / step_size)
+    requested_step = ceil((requested - MIN_COLOR_TEMP_KELVIN) / step_size)
+    press_count = (requested_step - current_step) % cycle_length
+    return (cycle_command,) * press_count
 
 
 def _validated_brightness(value: object) -> int | None:

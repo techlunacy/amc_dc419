@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from custom_components.amc_dc419.const import LearnCommand
 from custom_components.amc_dc419.light import (
     AMCDC419Light,
+    cyclic_adjustment_commands,
     repeated_adjustment_commands,
 )
 
@@ -30,27 +31,25 @@ def test_brightness_calculation_uses_four_presses_for_example() -> None:
     )
 
 
-def test_colour_calculation_selects_direction_and_rounds_up() -> None:
-    """Colour temperature changes select the right command and enough presses."""
+def test_colour_calculation_cycles_forward_and_wraps() -> None:
+    """Colour temperature changes use the one forward-only handset control."""
     assert (
-        repeated_adjustment_commands(
+        cyclic_adjustment_commands(
             4_000,
             4_450,
             250,
-            LearnCommand.COLOUR_UP,
-            LearnCommand.COLOUR_DOWN,
+            LearnCommand.COLOUR_CYCLE,
         )
-        == (LearnCommand.COLOUR_UP,) * 2
+        == (LearnCommand.COLOUR_CYCLE,) * 2
     )
     assert (
-        repeated_adjustment_commands(
+        cyclic_adjustment_commands(
             4_000,
             3_600,
             250,
-            LearnCommand.COLOUR_UP,
-            LearnCommand.COLOUR_DOWN,
+            LearnCommand.COLOUR_CYCLE,
         )
-        == (LearnCommand.COLOUR_DOWN,) * 2
+        == (LearnCommand.COLOUR_CYCLE,) * 18
     )
 
 
@@ -84,9 +83,9 @@ async def test_light_entity_sends_ordered_brightness_commands(
 async def test_light_entity_sends_colour_temperature_commands(
     hass: HomeAssistant,
 ) -> None:
-    """Requested Kelvin temperature translates to repeated Colour Up commands."""
+    """Requested Kelvin temperature translates to repeated Colour Cycle commands."""
     entry, transport, command_store = await create_runtime_entry(hass)
-    for command in (LearnCommand.LIGHT_TOGGLE, LearnCommand.COLOUR_UP):
+    for command in (LearnCommand.LIGHT_TOGGLE, LearnCommand.COLOUR_CYCLE):
         await command_store.async_store_command(
             "controller", make_learned_command(command)
         )
@@ -99,8 +98,8 @@ async def test_light_entity_sends_colour_temperature_commands(
 
     assert [command.command for command in transport.sent] == [
         LearnCommand.LIGHT_TOGGLE,
-        LearnCommand.COLOUR_UP,
-        LearnCommand.COLOUR_UP,
+        LearnCommand.COLOUR_CYCLE,
+        LearnCommand.COLOUR_CYCLE,
     ]
     assert light.color_temp_kelvin == 4_500
 

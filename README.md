@@ -62,7 +62,7 @@ It then requests each RF command in order:
 
 | Group | Commands |
 | --- | --- |
-| Light | Light Toggle, Brightness Up, Brightness Down, Colour Up, Colour Down |
+| Light | Light Toggle, Brightness Up, Brightness Down, Colour Cycle |
 | Fan | Fan Off, Speed 1, Speed 2, Speed 3, Speed 4, Speed 5, Speed 6 |
 | Direction | Direction Toggle |
 
@@ -81,7 +81,7 @@ Each configured controller exposes:
 | Entity | Behavior |
 | --- | --- |
 | Fan | On/off, six discrete speed commands, and forward/reverse direction. Requested percentages are mapped to the nearest supported speed. |
-| Light | On/off through one shared handset toggle, brightness, and 2000–6500 K colour temperature. Brightness and colour changes are translated into repeated RF presses. |
+| Light | On/off through one shared handset toggle, brightness, and 2000–6500 K colour temperature. Brightness uses directional presses; colour changes move forward through the handset's cyclic colour control. |
 
 The RF handset is one-way: it cannot report physical state. Entity values are
 therefore optimistic and represent the last successful command sent through

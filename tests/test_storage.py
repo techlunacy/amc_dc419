@@ -94,3 +94,31 @@ def test_deserialize_migrates_light_on_to_light_toggle() -> None:
         CONF_REMOTE_DEVICE: "amc_dc419_controller",
         ATTR_REMOTE_COMMAND: "light_on",
     }
+
+
+def test_deserialize_migrates_colour_up_to_colour_cycle() -> None:
+    """An existing Colour Up binding remains usable as the cyclic colour control."""
+    commands = CommandStore._deserialize(
+        {
+            "controllers": {
+                "controller": {
+                    "colour_up": {
+                        CONF_REMOTE_ENTITY_ID: "remote.office",
+                        CONF_REMOTE_DEVICE: "amc_dc419_controller",
+                        "learned_at": "2026-07-25T00:00:00+00:00",
+                    },
+                    "colour_down": {
+                        CONF_REMOTE_ENTITY_ID: "remote.office",
+                        CONF_REMOTE_DEVICE: "amc_dc419_controller",
+                        "learned_at": "2026-07-25T00:00:00+00:00",
+                    },
+                }
+            }
+        }
+    )
+
+    migrated = commands["controller"][LearnCommand.COLOUR_CYCLE]
+    assert migrated.payload == {
+        CONF_REMOTE_DEVICE: "amc_dc419_controller",
+        ATTR_REMOTE_COMMAND: "colour_up",
+    }

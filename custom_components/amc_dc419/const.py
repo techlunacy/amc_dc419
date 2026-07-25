@@ -59,8 +59,7 @@ class LearnCommand(StrEnum):
     LIGHT_TOGGLE = "light_toggle"
     BRIGHTNESS_UP = "brightness_up"
     BRIGHTNESS_DOWN = "brightness_down"
-    COLOUR_UP = "colour_up"
-    COLOUR_DOWN = "colour_down"
+    COLOUR_CYCLE = "colour_cycle"
     FAN_OFF = "fan_off"
     FAN_SPEED_1 = "fan_speed_1"
     FAN_SPEED_2 = "fan_speed_2"
@@ -77,8 +76,7 @@ LEARN_COMMAND_LABELS: Final[dict[LearnCommand, str]] = {
     LearnCommand.LIGHT_TOGGLE: "Light Toggle",
     LearnCommand.BRIGHTNESS_UP: "Brightness Up",
     LearnCommand.BRIGHTNESS_DOWN: "Brightness Down",
-    LearnCommand.COLOUR_UP: "Colour Up",
-    LearnCommand.COLOUR_DOWN: "Colour Down",
+    LearnCommand.COLOUR_CYCLE: "Colour Cycle",
     LearnCommand.FAN_OFF: "Fan Off",
     LearnCommand.FAN_SPEED_1: "Speed 1",
     LearnCommand.FAN_SPEED_2: "Speed 2",

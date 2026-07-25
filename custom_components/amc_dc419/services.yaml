@@ -23,8 +23,7 @@ learn_command:
             - light_toggle
             - brightness_up
             - brightness_down
-            - colour_up
-            - colour_down
+            - colour_cycle
             - fan_off
             - fan_speed_1
             - fan_speed_2
@@ -50,8 +49,7 @@ send_raw:
             - light_toggle
             - brightness_up
             - brightness_down
-            - colour_up
-            - colour_down
+            - colour_cycle
             - fan_off
             - fan_speed_1
             - fan_speed_2

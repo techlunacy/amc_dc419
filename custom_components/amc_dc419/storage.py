@@ -23,6 +23,7 @@ from .transport import LearnedCommand, PayloadValue
 STORAGE_KEY: Final = f"{DOMAIN}.commands"
 STORAGE_VERSION: Final = 1
 LEGACY_LIGHT_ON_COMMAND: Final = "light_on"
+LEGACY_COLOUR_COMMANDS: Final = frozenset({"colour_up", "colour_down"})
 
 
 class CommandStore:
@@ -130,11 +131,14 @@ class CommandStore:
                 try:
                     command = LearnCommand(command_value)
                 except ValueError:
-                    if command_value != LEGACY_LIGHT_ON_COMMAND:
+                    if command_value == LEGACY_LIGHT_ON_COMMAND:
+                        command = LearnCommand.LIGHT_TOGGLE
+                    elif command_value in LEGACY_COLOUR_COMMANDS:
+                        command = LearnCommand.COLOUR_CYCLE
+                    else:
                         continue
-                    command = LearnCommand.LIGHT_TOGGLE
 
-                if command is LearnCommand.LIGHT_TOGGLE and command in commands:
+                if command in commands:
                     continue
 
                 learned_command = LearnedCommand.from_storage_data(
