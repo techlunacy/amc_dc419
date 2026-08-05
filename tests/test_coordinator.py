@@ -185,6 +185,44 @@ async def test_unavailable_send_marks_transport_unavailable(
     assert coordinator.transport_available is False
 
 
+async def test_transport_recovery_preserves_optimistic_state(
+    hass: HomeAssistant,
+) -> None:
+    """Transport recovery does not discard state from before unavailability."""
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    store = CommandStore(hass)
+    transport = FakeTransport()
+    await store.async_store_command(
+        "controller", make_learned_command(LearnCommand.FAN_SPEED_3)
+    )
+    coordinator = AMCDC419Coordinator(hass, entry, "controller", store, transport)
+    await coordinator.async_initialize()
+    await coordinator.async_send_commands(
+        (LearnCommand.FAN_SPEED_3,),
+        lambda state: replace(state, fan_percentage=50, light_is_on=True),
+    )
+
+    transport.fail_send = True
+    with pytest.raises(TransportUnavailableError):
+        await coordinator.async_send_commands((LearnCommand.FAN_SPEED_3,))
+
+    assert coordinator.transport_available is False
+    assert coordinator.data.fan_percentage == 50
+    assert coordinator.data.light_is_on is True
+
+    transport.fail_send = False
+    await coordinator._async_refresh_transport_availability()
+
+    assert coordinator.transport_available is True
+    assert coordinator.data.fan_percentage == 50
+    assert coordinator.data.light_is_on is True
+    stored_state = await get_optimistic_state_store(hass).async_get_state("controller")
+    assert stored_state is not None
+    assert stored_state.fan_percentage == 50
+    assert stored_state.light_is_on is True
+
+
 async def test_reset_optimistic_state_preserves_availability(
     hass: HomeAssistant,
 ) -> None:
@@ -341,3 +379,29 @@ async def test_optimistic_state_expires_after_configured_timeout(
     assert coordinator.data.fan_percentage is None
     assert coordinator.transport_available is True
     assert await get_optimistic_state_store(hass).async_get_state("controller") is None
+
+
+async def test_default_optimistic_state_does_not_expire(
+    hass: HomeAssistant,
+) -> None:
+    """The default state remains available until the user resets it."""
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    store = CommandStore(hass)
+    await store.async_store_command(
+        "controller", make_learned_command(LearnCommand.FAN_SPEED_1)
+    )
+    coordinator = AMCDC419Coordinator(hass, entry, "controller", store, FakeTransport())
+    await coordinator.async_initialize()
+
+    await coordinator.async_send_commands(
+        (LearnCommand.FAN_SPEED_1,),
+        lambda state: replace(state, fan_percentage=16),
+    )
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+    await hass.async_block_till_done()
+
+    assert coordinator.data.fan_percentage == 16
+    assert (
+        await get_optimistic_state_store(hass).async_get_state("controller") is not None
+    )

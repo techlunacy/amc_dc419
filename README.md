@@ -91,12 +91,12 @@ Each configured controller exposes:
 The RF handset is one-way: it cannot report physical state. Entity values are
 therefore optimistic and represent the last successful command sent through
 Home Assistant. The inferred fan speed, light power, and brightness are restored
-after a Home Assistant restart until the configured optimistic-state timeout
-expires. The direction button sends a relative toggle; the controller cannot
-report or retain its physical direction. State becomes unknown after that timeout
-or when you run `amc_dc419.sync_state`. Use Home Assistant to control the fan and
-light consistently; commands sent from the physical handset cannot be observed
-by this integration.
+after a Home Assistant restart. The direction button sends a relative toggle;
+the controller cannot report or retain its physical direction. State becomes
+unknown when you run `amc_dc419.sync_state` or after a configured nonzero
+optimistic-state timeout. Use Home Assistant to control the fan and light
+consistently; commands sent from the physical handset cannot be observed by this
+integration.
 
 When light power is unknown, a brightness change sends only the relative
 brightness command and does not send the shared light toggle. Use the light's
@@ -111,7 +111,7 @@ Open **Configure** on the integration card to tune RF behavior per controller:
 | Delay between RF presses | 0.25 seconds | Paces command batches. |
 | Brightness step size | 20 | Estimated brightness change per handset press. |
 | RF send retries | 1 | Retries transient transport failures. |
-| Optimistic state timeout | 30 seconds | Clears inferred state after the selected duration; set to 0 to retain it until reset. |
+| Optimistic state timeout | Disabled (0) | Retains inferred state until reset; choose a positive duration to clear it automatically. |
 
 The physical handset’s brightness step size may differ. Adjust the brightness
 step-size option until Home Assistant’s inferred state tracks the controller
