@@ -87,6 +87,9 @@ class AMCDC419Fan(AMCDC419Entity, FanEntity):
     async def async_set_percentage(self, percentage: int) -> None:
         """Set fan speed using the nearest discrete DC419 RF command."""
         selected_percentage, command = fan_command_for_percentage(percentage)
+        if self.coordinator.data.fan_percentage == selected_percentage:
+            return
+
         await self.coordinator.async_send_commands(
             (command,),
             lambda state: replace(state, fan_percentage=selected_percentage),

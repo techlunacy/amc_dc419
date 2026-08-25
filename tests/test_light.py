@@ -61,6 +61,25 @@ async def test_light_entity_sends_ordered_brightness_commands(
     assert light.brightness == 160
 
 
+async def test_light_entity_repeated_turn_on_does_not_retoggle_light(
+    hass: HomeAssistant,
+) -> None:
+    """A duplicate on request does not toggle the light back off."""
+    entry, transport, command_store = await create_runtime_entry(hass)
+    await command_store.async_store_command(
+        "controller", make_learned_command(LearnCommand.LIGHT_TOGGLE)
+    )
+    entry.runtime_data.coordinator.async_set_updated_data(
+        replace(entry.runtime_data.coordinator.data, light_is_on=True)
+    )
+    light = AMCDC419Light(entry)
+
+    await light.async_turn_on()
+
+    assert transport.sent == []
+    assert light.is_on is True
+
+
 async def test_light_entity_unchanged_brightness_is_a_no_op(
     hass: HomeAssistant,
 ) -> None:
@@ -173,3 +192,22 @@ async def test_light_entity_uses_toggle_command_to_turn_off(
     ]
     assert light.is_on is False
     assert light.brightness == 160
+
+
+async def test_light_entity_repeated_turn_off_does_not_retoggle_light(
+    hass: HomeAssistant,
+) -> None:
+    """A duplicate off request does not turn the toggle-only light back on."""
+    entry, transport, command_store = await create_runtime_entry(hass)
+    await command_store.async_store_command(
+        "controller", make_learned_command(LearnCommand.LIGHT_TOGGLE)
+    )
+    entry.runtime_data.coordinator.async_set_updated_data(
+        replace(entry.runtime_data.coordinator.data, light_is_on=False)
+    )
+    light = AMCDC419Light(entry)
+
+    await light.async_turn_off()
+
+    assert transport.sent == []
+    assert light.is_on is False

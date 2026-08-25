@@ -67,3 +67,26 @@ async def test_fan_entity_supports_turn_actions(hass: HomeAssistant) -> None:
         LearnCommand.FAN_OFF,
     ]
     assert fan.percentage == 0
+
+
+async def test_fan_entity_repeated_turn_actions_do_not_resend_commands(
+    hass: HomeAssistant,
+) -> None:
+    """Repeated on and off requests do not resend RF commands."""
+    entry, transport, command_store = await create_runtime_entry(hass)
+    for command in (LearnCommand.FAN_SPEED_2, LearnCommand.FAN_OFF):
+        await command_store.async_store_command(
+            "controller", make_learned_command(command)
+        )
+    fan = AMCDC419Fan(entry)
+
+    await fan.async_turn_on()
+    await fan.async_turn_on()
+    await fan.async_turn_off()
+    await fan.async_turn_off()
+
+    assert [command.command for command in transport.sent] == [
+        LearnCommand.FAN_SPEED_2,
+        LearnCommand.FAN_OFF,
+    ]
+    assert fan.percentage == 0

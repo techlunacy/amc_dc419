@@ -64,6 +64,9 @@ class AMCDC419Light(AMCDC419Entity, LightEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the light and apply a requested brightness."""
         requested_brightness = _validated_brightness(kwargs.get(ATTR_BRIGHTNESS))
+        if self.coordinator.data.light_is_on is True and requested_brightness is None:
+            return
+
         current_brightness = (
             self.coordinator.data.brightness
             if self.coordinator.data.brightness is not None
@@ -98,6 +101,9 @@ class AMCDC419Light(AMCDC419Entity, LightEntity):
 
     async def async_turn_off(self, **_kwargs: Any) -> None:
         """Turn off the light while retaining its last optimistic levels."""
+        if self.coordinator.data.light_is_on is False:
+            return
+
         await self.coordinator.async_send_commands(
             (LearnCommand.LIGHT_TOGGLE,),
             lambda state: replace(state, light_is_on=False),
